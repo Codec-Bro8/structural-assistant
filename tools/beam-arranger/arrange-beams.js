@@ -1,23 +1,24 @@
 "use strict";
 
-const path = require("path");
-const {
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
   readLines,
   writeLines,
   walkEntities,
   findMaxHandle,
   bumpHandSeed,
-} = require("./dxf-io");
-const {
+} from "./dxf-io.js";
+import {
   extractBeamLabels,
   extractBeamLineSegments,
   extractDetailBeamTitles,
-} = require("./extract");
-const { mergeBeams } = require("./merge-beams");
+} from "./extract.js";
+import { mergeBeams } from "./merge-beams.js";
 // The mark text, its size and the rule for nudging two apart are shared with
 // build-details.js, so a beam cannot be marked one way on the plan and another
 // on the detail sheet.
-const {
+import {
   MARK_LAYER,
   MARK_COLOR,
   TEXT_HEIGHT,
@@ -25,11 +26,11 @@ const {
   halfExtents,
   collides,
   resolveCollisions,
-} = require("./plan-marks");
-const { compareStorey } = require("./number-beams");
-const { buildBeamMarkTextEntity } = require("./build-entity");
-const { ensureLayer, resolveTextStyle } = require("./tables");
-const {
+} from "./plan-marks.js";
+import { compareStorey } from "./number-beams.js";
+import { buildBeamMarkTextEntity } from "./build-entity.js";
+import { ensureLayer, resolveTextStyle } from "./tables.js";
+import {
   DEFAULTS,
   detailZone,
   collectDetailEntities,
@@ -42,7 +43,9 @@ const {
   translateRange,
   translateBlock,
   placeTitle,
-} = require("./layout-details");
+} from "./layout-details.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 
 const argv = process.argv.slice(2);

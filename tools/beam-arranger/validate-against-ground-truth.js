@@ -2,10 +2,13 @@
 
 // Cross-checks merged output against real human ground truth.
 
-const path = require("path");
-const { readLines, walkEntities } = require("./dxf-io");
-const { extractBeamLabels, extractBeamLineSegments } = require("./extract");
-const { mergeBeams } = require("./merge-beams");
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { readLines, walkEntities } from "./dxf-io.js";
+import { extractBeamLabels, extractBeamLineSegments } from "./extract.js";
+import { mergeBeams } from "./merge-beams.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PROTA = path.join(
   __dirname,

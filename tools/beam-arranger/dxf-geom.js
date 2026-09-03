@@ -186,4 +186,4 @@ function translateRange(lines, start, end, type, dx, dy, unknownTypes) {
   return true;
 }
 
-module.exports = { POINT_CODES, readHatch, ownPoints, entityBox, translateRange };
+export { POINT_CODES, readHatch, ownPoints, entityBox, translateRange };

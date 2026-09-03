@@ -1,0 +1,7 @@
+{
+  "name": "structural-assistant",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "DXF tools for structural beam drawings. The web front end has its own package.json in web/."
+}

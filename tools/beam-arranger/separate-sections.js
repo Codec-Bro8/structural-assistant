@@ -15,15 +15,18 @@
 //
 // All placement constants below are measured off the hand-corrected sample.
 
-const path = require("path");
-const { readLines, writeLines, walkEntities } = require("./dxf-io");
-const {
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { readLines, writeLines, walkEntities } from "./dxf-io.js";
+import {
   detailZone,
   collectDetailEntities,
   collectBlockRanges,
   translateRange,
   translateBlock,
-} = require("./layout-details");
+} from "./layout-details.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SRC = path.join(__dirname, "..", "..", "examples", "procta-beam-1.arranged.dxf");
 const OUT = path.join(__dirname, "..", "..", "examples", "procta-beam-1.separated-v2.dxf");

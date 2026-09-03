@@ -12,7 +12,7 @@
 // collide. Shared by both drivers so a mark on the plan and a title on the
 // detail sheet can never be numbered by two different rules.
 
-const { buildBeamMarkTextEntity } = require("./build-entity");
+import { buildBeamMarkTextEntity } from "./build-entity.js";
 
 const MARK_LAYER = "MD-BEAM LABEL";
 const MARK_COLOR = 6;
@@ -197,7 +197,7 @@ function markEntity(p, { handle, owner, style }) {
   });
 }
 
-module.exports = {
+export {
   MARK_LAYER,
   MARK_COLOR,
   TEXT_HEIGHT,

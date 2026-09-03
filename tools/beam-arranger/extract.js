@@ -1,6 +1,6 @@
 "use strict";
 
-const { walkEntities } = require("./dxf-io");
+import { walkEntities } from "./dxf-io.js";
 
 // The token before the B says which storey the beam belongs to, and it is not
 // always a number. A suspended floor numbers its beams "1B7"; the ground floor
@@ -176,7 +176,7 @@ function extractBeamLineSegments(lines, layerNames) {
   return segs;
 }
 
-module.exports = {
+export {
   extractBeamLabels,
   extractBeamLineSegments,
   extractDetailBeamTitles,

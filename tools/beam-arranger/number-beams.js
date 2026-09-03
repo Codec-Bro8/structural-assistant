@@ -87,4 +87,4 @@ function numberBeams(groups) {
   return { beams, byMark, byStorey, rejected };
 }
 
-module.exports = { sizeKey, compareForNumbering, compareStorey, numberBeams };
+export { sizeKey, compareForNumbering, compareStorey, numberBeams };

@@ -148,4 +148,4 @@ function resolveTextStyle(lines, preferences) {
   return match("Standard") || "Standard";
 }
 
-module.exports = { readTable, ensureLayer, resolveTextStyle, findLayer };
+export { readTable, ensureLayer, resolveTextStyle, findLayer };

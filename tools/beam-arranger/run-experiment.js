@@ -1,16 +1,19 @@
 "use strict";
 
-const path = require("path");
-const {
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
   readLines,
   writeLines,
   walkEntities,
   findMaxHandle,
   bumpHandSeed,
-} = require("./dxf-io");
-const { extractBeamLabels, extractBeamLineSegments } = require("./extract");
-const { mergeBeams } = require("./merge-beams");
-const { buildBeamMarkTextEntity } = require("./build-entity");
+} from "./dxf-io.js";
+import { extractBeamLabels, extractBeamLineSegments } from "./extract.js";
+import { mergeBeams } from "./merge-beams.js";
+import { buildBeamMarkTextEntity } from "./build-entity.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SRC = path.join(__dirname, "..", "..", "examples", "procta-beam-1.dxf");
 const suffix = process.argv[2] ? `-${process.argv[2]}` : "";

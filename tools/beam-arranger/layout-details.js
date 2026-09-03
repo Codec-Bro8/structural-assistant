@@ -11,10 +11,10 @@
 // Nothing here rescales or redraws. Every detail moves as a rigid body, so the
 // geometry stays exactly as Prota produced it.
 
-const { walkEntities } = require("./dxf-io");
+import { walkEntities } from "./dxf-io.js";
 // Boxes and translation live in dxf-geom so the HATCH handling described there
 // is shared by every caller rather than reimplemented per module.
-const { POINT_CODES, entityBox, translateRange } = require("./dxf-geom");
+import { POINT_CODES, entityBox, translateRange } from "./dxf-geom.js";
 
 // Layers that make up a beam elevation. Anything outside this set (the GA plan,
 // quantity tables, title block) stays where it is.
@@ -382,7 +382,7 @@ function placeTitle(lines, startLine, endLine, centreX, bottomY) {
   }
 }
 
-module.exports = {
+export {
   DETAIL_LAYERS,
   TITLE_LAYER,
   DEFAULTS,

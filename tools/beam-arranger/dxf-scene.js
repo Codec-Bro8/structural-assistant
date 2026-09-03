@@ -21,7 +21,9 @@
 //
 // each carrying a layer index `l` and a resolved RGB `c`.
 
-const fs = require("fs");
+import fs from "node:fs";
+import zlib from "node:zlib";
+import { pathToFileURL } from "node:url";
 
 // --- colour ---------------------------------------------------------------
 
@@ -667,13 +669,13 @@ function sceneFromFile(filePath) {
   return flatten(parse(fs.readFileSync(filePath, "utf8")));
 }
 
-module.exports = { parse, flatten, sceneFromFile, aciToRgb };
+export { parse, flatten, sceneFromFile, aciToRgb };
 
 // Run directly, this reports on a drawing; with --out it writes the scene as
 // gzipped JSON. The web server uses that second form so a big drawing's parse
 // -- easily a few hundred megabytes while it is in flight -- happens in a
 // process that can be thrown away, rather than in the one serving pages.
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2);
   const src = args.find((a) => !a.startsWith("--"));
   const out = (args.find((a) => a.startsWith("--out=")) || "").slice(6);
@@ -693,7 +695,7 @@ if (require.main === module) {
   }
 
   if (out) {
-    fs.writeFileSync(out, require("zlib").gzipSync(Buffer.from(JSON.stringify(scene)), { level: 6 }));
+    fs.writeFileSync(out, zlib.gzipSync(Buffer.from(JSON.stringify(scene)), { level: 6 }));
   }
 
   console.log(

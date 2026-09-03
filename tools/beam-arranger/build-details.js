@@ -12,33 +12,34 @@
 // Nothing is rescaled or redrawn. Each drawing moves as a rigid body, so the
 // geometry stays exactly as Prota produced it.
 
-const fs = require("fs");
-const path = require("path");
-const {
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
   readLines,
   writeLines,
   walkEntities,
   findMaxHandle,
   bumpHandSeed,
-} = require("./dxf-io");
-const { entityBox, translateRange } = require("./dxf-geom");
-const {
+} from "./dxf-io.js";
+import { entityBox, translateRange } from "./dxf-geom.js";
+import {
   extractBeamLabels,
   extractBeamLineSegments,
   extractDetailBeamTitles,
   extractArrangedTitles,
   extractLayoutCaption,
-} = require("./extract");
-const { mergeBeams } = require("./merge-beams");
-const { numberBeams, compareStorey } = require("./number-beams");
-const {
+} from "./extract.js";
+import { mergeBeams } from "./merge-beams.js";
+import { numberBeams, compareStorey } from "./number-beams.js";
+import {
   DETAIL_LAYERS,
   TITLE_LAYER,
   collectBlockRanges,
   translateBlock,
-} = require("./layout-details");
-const { cutEntities, reshapeCuts } = require("./cut-marks");
-const {
+} from "./layout-details.js";
+import { cutEntities, reshapeCuts } from "./cut-marks.js";
+import {
   MARK_LAYER,
   MARK_COLOR,
   resolveCollisions,
@@ -46,9 +47,9 @@ const {
   planPlacements,
   markEntity,
   ACROSS_OFFSET,
-} = require("./plan-marks");
-const { buildBeamMarkTextEntity } = require("./build-entity");
-const { ensureLayer, findLayer, resolveTextStyle } = require("./tables");
+} from "./plan-marks.js";
+import { buildBeamMarkTextEntity } from "./build-entity.js";
+import { ensureLayer, findLayer, resolveTextStyle } from "./tables.js";
 
 const argv = process.argv.slice(2);
 const flags = new Map(
@@ -70,6 +71,7 @@ const LAST = LAST_EXPLICIT === null ? Infinity : LAST_EXPLICIT;
 // this is passed; see "mark the plan" below for why keeping them is the default.
 const REPLACE_SPAN_LABELS = Boolean(flags.get("replace-span-labels"));
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..", "..");
 // A bare name is looked up in examples/, as it always has been. An absolute
 // path is taken as given, so a caller working outside the repo -- the web
@@ -1436,8 +1438,8 @@ function main() {
   }
 }
 
-module.exports = { buildRows, rowZones, splitDetail, collect, box, partitionByStorey, SECTION_TITLE_RE, ELEVATION_LAYERS };
+export { buildRows, rowZones, splitDetail, collect, box, partitionByStorey, SECTION_TITLE_RE, ELEVATION_LAYERS };
 
 // Only run when invoked directly, so the pieces above can be exercised in
 // isolation without rebuilding a whole drawing.
-if (require.main === module) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

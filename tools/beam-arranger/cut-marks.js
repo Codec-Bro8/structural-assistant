@@ -20,7 +20,7 @@
 // was taken, so it may be nudged clear of annotation but never carried into a
 // different span.
 
-const { translateRange } = require("./dxf-geom");
+import { translateRange } from "./dxf-geom.js";
 
 const STEM_HEIGHT = 250;
 const ARROW_HEIGHT = 177;
@@ -229,7 +229,7 @@ function cutEntities(ents) {
   return out;
 }
 
-module.exports = {
+export {
   findCuts,
   cutEntities,
   facesAt,

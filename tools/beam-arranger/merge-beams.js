@@ -232,7 +232,7 @@ function mergeBeams(labels, lineSegments) {
   return { groups, unmatchedLabels, ambiguousLabels };
 }
 
-module.exports = {
+export {
   mergeBeams,
   COLUMN_GAP_TOLERANCE,
   EDGE_OVERLAP_MIN_FRACTION,

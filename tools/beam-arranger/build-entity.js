@@ -57,4 +57,4 @@ function buildBeamMarkTextEntity({
   return L;
 }
 
-module.exports = { buildBeamMarkTextEntity };
+export { buildBeamMarkTextEntity };

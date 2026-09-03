@@ -1,10 +1,11 @@
 "use strict";
 
+import fs from "node:fs";
+
 // Minimal raw DXF group-code reader/writer.
 // This Copies the Beams into a new file
 
 function readLines(filePath) {
-  const fs = require("fs");
   const raw = fs.readFileSync(filePath, "utf8");
   const usesCRLF = raw.includes("\r\n");
   const lines = raw.split(/\r\n|\n/);
@@ -12,7 +13,6 @@ function readLines(filePath) {
 }
 
 function writeLines(filePath, lines, usesCRLF) {
-  const fs = require("fs");
   const eol = usesCRLF ? "\r\n" : "\n";
   fs.writeFileSync(filePath, lines.join(eol), "utf8");
 }
@@ -80,7 +80,7 @@ function bumpHandSeed(lines, newMaxHandle) {
   return lines;
 }
 
-module.exports = {
+export {
   readLines,
   writeLines,
   walkEntities,
