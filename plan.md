@@ -513,10 +513,12 @@ reported as a warning.
 
 | file | what it does |
 |---|---|
-| `dxf-io.js` | raw DXF read/write, entity walking, handle allocation |
+| `dxf-io.js` | raw DXF parsing, entity walking, handle allocation — no filesystem |
+| `dxf-io-node.js` | the disk half of it: reading and writing a file |
 | `dxf-geom.js` | entity bounding boxes and rigid translation, incl. the HATCH rules |
 | `number-beams.js` | storey numbering and size labels, shared by both drivers |
-| `build-details.js` | **the current driver** — separates and arranges the detail sheet |
+| `detail-sheet.js` | **the arranger** — separates and arranges the detail sheet |
+| `build-details.js` | the command line for it |
 | `arrange-beams.js` | the older relabel-only driver, still used for plan marks |
 | `extract.js` | pulls beam labels, beam edge lines, detail titles |
 | `merge-beams.js` | works out which spans form one beam, from geometry |
@@ -526,6 +528,7 @@ reported as a warning.
 | `cut-marks.js` | pulls each section cut in to the beam faces and clear of the annotation |
 | `plan-marks.js` | one mark per merged beam on the plan, and the rule for nudging two apart |
 | `dxf-scene.js` | turns a DXF into drawing primitives, for the preview only |
+| `dxf-scene-cli.js` | the command line for that |
 | `validate-against-ground-truth.js` | obsolete, safe to delete |
 | `run-experiment.js` | obsolete, safe to delete |
 
@@ -534,28 +537,40 @@ reported as a warning.
 `cd web && pnpm install`, then `pnpm dev` and open the address it prints.
 You drop in a raw export or pick one from `examples/`, and get the run's own
 numbers, a preview of the arranged sheet and the file to download. React and
-Vite for the page, plain Node for the API, localhost only. `web/README.md` has
-the detail.
+Vite for the page. `web/README.md` has the detail.
 
-Two things about it constrain the pipeline, and are the reason it needed any
+**The arranger runs in the browser.** There is no server and no API: the page
+imports these same modules and runs them in a worker, so a drawing is read off
+the disk by the file input and never leaves the machine. That is possible
+because the pipeline is string-and-number work with no filesystem in it, and it
+is what makes the front end a static site — it deploys anywhere that can serve
+files, with no upload limit and no request to time out.
+
+Two things about it shaped the pipeline, and are the reason it needed any
 change at all:
 
-**The driver takes absolute paths.** A bare name is still looked up in
-`examples/` exactly as before, but `SRC` and `--out` accept an absolute path,
-so the server can run a drawing sitting in a scratch directory without copying
-it into the repository first. Nothing else about the CLI changed.
+**The disk is kept at the edges.** `dxf-io.js` parses text and `dxf-io-node.js`
+reads files; `detail-sheet.js` arranges a drawing and `build-details.js` is its
+command line. Nothing in between knows where a drawing came from. The command
+line is unchanged — same flags, same `examples/` lookup, same absolute-path
+handling — and produces the same bytes it did before, which is checked against
+saved output rather than assumed.
 
 **Every run prints one machine-readable line**, `SHEET-EXTENT x0 y0 x1 y1`,
-giving the frames’ own extents. The arranged sheet is built beside the source
+giving the frames' own extents. The arranged sheet is built beside the source
 drawing rather than in place of it, so a viewer that fitted the whole file
 would show mostly empty paper; this is how it knows where the result went.
+
+More generally, the report is the run's only account of itself: the page's
+numbers are read back out of that text rather than counted again, so a report
+line is an interface and changing its wording breaks something.
 
 The preview is a **second, independent parse** of the file. `dxf-io.js` walks
 `ENTITIES` only, which is all the arranger needs; drawing the file also needs
 the `BLOCKS` section -- a `DIMENSION` keeps its arrows and text in an anonymous
 block, and an `INSERT` is nothing without its block -- and the `LAYER` table
 for colour. Those stay out of `dxf-io.js` so the pipeline’s reader stays
-minimal. `dxf-scene.js` reads the *output file*, not the pipeline’s internal
+minimal. `dxf-scene.js` reads the *output drawing*, not the pipeline’s internal
 state, so what is shown is what was written.
 
 It does not draw `REGION` or `SPLINE`, and ignores line weights, line types and
