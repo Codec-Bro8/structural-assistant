@@ -1,2 +1,4 @@
 *.dwl*
 *.dxf*
+node_modules/
+web/dist/

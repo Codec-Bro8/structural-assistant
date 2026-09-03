@@ -1,0 +1,21 @@
+{
+  "name": "beam-arranger-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Local front end for the beam arranger",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.0",
+    "vite": "^8.2.2"
+  }
+}
