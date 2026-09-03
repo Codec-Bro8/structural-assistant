@@ -7,7 +7,7 @@ const { readLines, walkEntities } = require("./dxf-io");
 const { extractBeamLabels, extractBeamLineSegments } = require("./extract");
 const { mergeBeams } = require("./merge-beams");
 
-const PROCTA = path.join(
+const PROTA = path.join(
   __dirname,
   "..",
   "..",
@@ -42,17 +42,17 @@ function extractMdBeamLabels(lines) {
 }
 
 function main() {
-  const procta = readLines(PROCTA);
+  const prota = readLines(PROTA);
   const mostly = readLines(MOSTLY);
 
-  const pLabels = extractBeamLabels(procta.lines);
+  const pLabels = extractBeamLabels(prota.lines);
   const mLabels = extractBeamLabels(mostly.lines);
   const p1 = pLabels.find((l) => l.mark === "1B1");
   const m1 = mLabels.find((l) => l.mark === "1B1");
   const dx = p1.x - m1.x;
   const dy = p1.y - m1.y;
 
-  const segments = extractBeamLineSegments(procta.lines, ["Beam Line"]);
+  const segments = extractBeamLineSegments(prota.lines, ["Beam Line"]);
   const { groups } = mergeBeams(pLabels, segments);
 
   const humanMarks = extractMdBeamLabels(mostly.lines).map((h) => ({
@@ -97,7 +97,7 @@ function main() {
     );
     for (const h of unmatchedHuman) {
       console.log(
-        `  ${h.text} at procta-space (${h.x.toFixed(1)}, ${h.y.toFixed(1)})`,
+        `  ${h.text} at prota-space (${h.x.toFixed(1)}, ${h.y.toFixed(1)})`,
       );
     }
   }
