@@ -17,7 +17,8 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readLines, writeLines, walkEntities } from "./dxf-io.js";
+import { walkEntities } from "./dxf-io.js";
+import { readLines, writeLines } from "./dxf-io-node.js";
 import {
   detailZone,
   collectDetailEntities,

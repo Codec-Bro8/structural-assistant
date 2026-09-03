@@ -2,13 +2,8 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  readLines,
-  writeLines,
-  walkEntities,
-  findMaxHandle,
-  bumpHandSeed,
-} from "./dxf-io.js";
+import { walkEntities, findMaxHandle, bumpHandSeed } from "./dxf-io.js";
+import { readLines, writeLines } from "./dxf-io-node.js";
 import {
   extractBeamLabels,
   extractBeamLineSegments,

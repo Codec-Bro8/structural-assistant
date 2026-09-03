@@ -3,9 +3,9 @@
 // Turns a DXF into flat drawing primitives for a preview.
 //
 // This is a viewer, not part of the arranging pipeline: nothing here is ever
-// written back to a drawing. It exists so a run can be looked at in a browser
-// without opening AutoCAD, and it deliberately reads the *output* file rather
-// than the pipeline's internal state, so what is shown is what was written.
+// written back to a drawing. It exists so a run can be looked at without
+// opening AutoCAD, and it deliberately reads the *output text* rather than the
+// pipeline's internal state, so what is shown is what was written.
 //
 // It is a second, independent parse of the file. `dxf-io.js` walks ENTITIES
 // only, which is all the arranger needs; a preview also needs the BLOCKS
@@ -20,10 +20,6 @@
 //   { k: "t", x, y, h, s }                  single line of text
 //
 // each carrying a layer index `l` and a resolved RGB `c`.
-
-import fs from "node:fs";
-import zlib from "node:zlib";
-import { pathToFileURL } from "node:url";
 
 // --- colour ---------------------------------------------------------------
 
@@ -665,48 +661,9 @@ function flatten(doc, opts = {}) {
   };
 }
 
-function sceneFromFile(filePath) {
-  return flatten(parse(fs.readFileSync(filePath, "utf8")));
+function sceneFromText(text) {
+  return flatten(parse(text));
 }
 
-export { parse, flatten, sceneFromFile, aciToRgb };
+export { parse, flatten, sceneFromText, aciToRgb };
 
-// Run directly, this reports on a drawing; with --out it writes the scene as
-// gzipped JSON. The web server uses that second form so a big drawing's parse
-// -- easily a few hundred megabytes while it is in flight -- happens in a
-// process that can be thrown away, rather than in the one serving pages.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const args = process.argv.slice(2);
-  const src = args.find((a) => !a.startsWith("--"));
-  const out = (args.find((a) => a.startsWith("--out=")) || "").slice(6);
-  const focus = (args.find((a) => a.startsWith("--focus=")) || "").slice(8);
-
-  if (!src) {
-    console.error("usage: node dxf-scene.js <file.dxf> [--out=scene.json.gz] [--focus=x0,y0,x1,y1]");
-    process.exit(2);
-  }
-
-  const scene = sceneFromFile(src);
-
-  if (focus) {
-    const n = focus.split(",").map(Number);
-    if (n.length === 4 && n.every(isFinite))
-      scene.focus = { x0: n[0], y0: n[1], x1: n[2], y1: n[3] };
-  }
-
-  if (out) {
-    fs.writeFileSync(out, zlib.gzipSync(Buffer.from(JSON.stringify(scene)), { level: 6 }));
-  }
-
-  console.log(
-    `${scene.counts.entities} entities -> ${scene.counts.prims} primitives, ` +
-      `${scene.counts.layers} layers, ${scene.counts.blocks} blocks`,
-  );
-  console.log(
-    `bbox x[${scene.bbox.x0.toFixed(0)}..${scene.bbox.x1.toFixed(0)}] ` +
-      `y[${scene.bbox.y0.toFixed(0)}..${scene.bbox.y1.toFixed(0)}]`,
-  );
-  if (scene.skipped.length)
-    console.log("not drawn:", scene.skipped.map((s) => `${s.type} x${s.n}`).join(", "));
-  if (out) console.log(`wrote ${out}`);
-}

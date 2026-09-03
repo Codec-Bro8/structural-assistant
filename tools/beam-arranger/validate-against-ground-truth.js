@@ -4,7 +4,8 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readLines, walkEntities } from "./dxf-io.js";
+import { walkEntities } from "./dxf-io.js";
+import { readLines } from "./dxf-io-node.js";
 import { extractBeamLabels, extractBeamLineSegments } from "./extract.js";
 import { mergeBeams } from "./merge-beams.js";
 

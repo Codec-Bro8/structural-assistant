@@ -1,20 +1,22 @@
 "use strict";
 
-import fs from "node:fs";
-
 // Minimal raw DXF group-code reader/writer.
-// This Copies the Beams into a new file
+//
+// Text in, text out. Nothing here touches a disk, so the same parser serves
+// the command-line drivers and the browser, which has no disk to touch. The
+// file reading and writing the drivers need lives in dxf-io-node.js.
 
-function readLines(filePath) {
-  const raw = fs.readFileSync(filePath, "utf8");
-  const usesCRLF = raw.includes("\r\n");
-  const lines = raw.split(/\r\n|\n/);
+// A drawing's line endings are a property of the file we were given, not a
+// preference of ours: a file that arrived with CRLF is written back with CRLF,
+// so a run that changes nothing produces a file that differs in nothing.
+function splitLines(text) {
+  const usesCRLF = text.includes("\r\n");
+  const lines = text.split(/\r\n|\n/);
   return { lines, usesCRLF };
 }
 
-function writeLines(filePath, lines, usesCRLF) {
-  const eol = usesCRLF ? "\r\n" : "\n";
-  fs.writeFileSync(filePath, lines.join(eol), "utf8");
+function joinLines(lines, usesCRLF) {
+  return lines.join(usesCRLF ? "\r\n" : "\n");
 }
 
 // Walks ENTITIES, calling onEntity with type, line bounds, and grouped fields.
@@ -81,8 +83,8 @@ function bumpHandSeed(lines, newMaxHandle) {
 }
 
 export {
-  readLines,
-  writeLines,
+  splitLines,
+  joinLines,
   walkEntities,
   findMaxHandle,
   bumpHandSeed,
