@@ -1,27 +1,26 @@
 # The web front end
 
-A local page for the beam arranger, so a drawing can be run and looked at
-without a terminal or AutoCAD. React and Vite; the API is plain Node.
+A page for the beam arranger, so a drawing can be run and looked at without a
+terminal or AutoCAD. React and Vite, and no back end at all: the arranger runs
+in the browser.
 
 ```
 cd web
 pnpm install
 
-pnpm dev                     # http://127.0.0.1:5173, with live reload
-pnpm build && pnpm start     # the built site, same address
+pnpm dev       # http://127.0.0.1:5173, with live reload
+pnpm build     # a static site in web/dist
+pnpm preview   # look at that build before deploying it
 ```
-
-`pnpm start` refuses to start without a build and tells you so. Both bind to
-`127.0.0.1` only.
 
 ## What it does
 
-1. You drop in a raw Prota export — anywhere on the window — or pick one
-   already sitting in `examples/`.
-2. It copies the file into a scratch directory and runs `build-details.js`
-   over the copy. **Neither your file nor the repository is written to.** Every
-   run lives in its own directory under the system temp folder, and old ones
-   are swept on startup.
+1. You drop in a raw Prota export — anywhere on the window — or, in
+   development, pick one already sitting in `examples/`.
+2. It reads the file in the page and runs the arranger over it in a worker.
+   **The drawing is never uploaded.** It is read off your disk by the browser,
+   arranged in memory, and handed back; nothing leaves the machine, and there
+   is no server to leave it on.
 3. It shows the run's own numbers — span labels in, beams found, beams placed,
    frames, rows, section cuts, and the leftover audit — with warnings and the
    full report behind one click.
@@ -29,7 +28,9 @@ pnpm build && pnpm start     # the built site, same address
 
 The numbers on the page are parsed out of what the run printed, not counted a
 second time, so they cannot disagree with the report underneath them. The
-download is the driver's own output, byte for byte.
+download is the arranger's own output, byte for byte — the same bytes
+`build-details.js` writes from the command line, which is checked rather than
+assumed.
 
 ## The layout
 
@@ -52,59 +53,75 @@ single-line text, and does not honour line weights, line types, text styles, or
 `REGION` and `SPLINE` geometry. Check the file in AutoCAD before it goes
 anywhere.
 
-`?example=NAME` opens the page on one of the drawings in `examples/`, and
-`&run=1` starts it straight away.
-
 ## How it is put together
 
 | file | what it does |
 |---|---|
-| `api.js` | the whole API: run, scene, download, examples |
-| `server.js` | serves `dist/` plus the API, for using the tool |
-| `vite.config.js` | dev server, with the API mounted inside it |
+| `src/worker/arranger.worker.js` | runs the arranger; the whole back end |
+| `src/api.js` | drives that worker, one per run |
+| `src/report.js` | reads a run's numbers back out of its report |
+| `vite.config.js` | dev server, and the sample drawings it lends the page |
 | `src/App.jsx` | the state of a run, and the layout |
 | `src/components/` | sidebar, viewer, stat grid, layer panel, report drawer |
 | `src/viewer/renderer.js` | the canvas: pan, zoom, paint |
 | `src/viewer/scene.js` | shifts coordinates to a local origin and batches by colour |
-| `../tools/beam-arranger/dxf-scene.js` | turns a DXF into drawing primitives |
 
-**There is one copy of the API.** In development it is mounted as middleware
-inside the Vite dev server; in production `server.js` calls the same
-`handleApi`. Nothing is proxied to a second process, one command starts
-everything, and the two environments cannot drift apart.
+**The pipeline is imported, not duplicated.** `@arranger` is an alias for
+`../tools/beam-arranger`, so the worker imports the same modules the command
+line drives. There is one implementation of the arranger and it has no idea
+which of the two is running it.
+
+That works because the pipeline has no filesystem in it. Everything from
+merging spans to placing cut marks is string-and-number work over the lines of
+the file; the two modules that did touch a disk were split so the parsing is
+separate from the reading (`dxf-io.js` and `dxf-io-node.js`), and the same for
+the driver (`detail-sheet.js` arranges a drawing, `build-details.js` is its
+command line).
+
+**It runs in a worker, not on the main thread.** A floor takes a second or two
+and holds a few hundred megabytes while it is in flight, and neither belongs on
+the thread drawing the page. One worker per run: it keeps the drawing it made
+so the viewer can ask for either side of it without running again, and starting
+another run terminates it, which is also the only way to abandon one.
 
 **The renderer is deliberately not React.** The canvas is one mutable surface
 redrawn on every pan and zoom; threading that through a render cycle would buy
 nothing. React owns the element, `SceneRenderer` owns what is on it.
 
-**Both the arranging run and the scene build happen in child processes.**
-Parsing a 5MB drawing holds a few hundred megabytes while it is in flight, and
-that is not a cost the process serving pages should carry — nor a failure it
-should die of.
-
 `dxf-scene.js` is a second, independent parse of the file, separate from
 `dxf-io.js`. The pipeline's reader walks `ENTITIES` only, which is all the
 arranger needs; a preview also needs the `BLOCKS` section — a `DIMENSION` keeps
 its arrows and text in an anonymous block — and the `LAYER` table for colour.
-It can be run on its own:
+It has a command line of its own:
 
 ```
-node tools/beam-arranger/dxf-scene.js examples/1st-sm.dxf
+node tools/beam-arranger/dxf-scene-cli.js examples/1st-sm.dxf
 ```
 
-## Endpoints
+## The sample drawings
 
-| | |
-|---|---|
-| `GET /api/examples` | the drawings in `examples/` |
-| `POST /api/run?example=NAME` | run one of them |
-| `POST /api/run?name=NAME` | run an uploaded body (the raw DXF, not a form) |
-| `GET /api/jobs/:id/scene?side=out\|in` | the drawing as primitives, gzipped |
-| `GET /api/jobs/:id/download` | the arranged DXF |
+`examples/` is gitignored, so the drawings in it exist only on a machine that
+has them. In development the dev server lists them and hands them over
+(`GET /api/examples`); a deployed build has none to list and the picker does
+not appear. Either way the file goes through the same worker as a dropped one —
+that path is a convenience for loading a file, not a second way of running one.
 
-`storey`, `first` and `last` are passed through to the driver as the flags of
-the same names.
+`?example=NAME` opens the page on one of them, and `&run=1` starts it straight
+away. Both only mean anything in development.
 
-Job handles are held in memory, so restarting the server loses them even though
-the files are still on disk; the page says so and asks you to run it again. In
-development, editing `api.js` restarts the dev server and has the same effect.
+## Deploying it
+
+It is a static site. Nothing here needs a server that can run Node, because
+nothing runs on a server.
+
+On Vercel, in Project Settings → General:
+
+- **Root Directory** → `web`
+- **Include files outside the Root Directory** → on, because the arranger
+  itself lives in `tools/beam-arranger`, above this directory
+
+Vite is detected from there; the build command and `dist` need no overriding.
+There is nothing else to configure — no functions, no rewrites, no environment
+variables — and none of the limits that come with them. A 5MB drawing is not an
+upload, so no request size cap applies to it, and a run is not a request, so
+nothing times out.

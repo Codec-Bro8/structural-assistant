@@ -120,10 +120,12 @@ export default function App() {
               Report
             </button>
           )}
+          {/* A blob URL has a UUID for a filename, so the name has to be given
+              explicitly or the drawing saves under one. */}
           <a
             className={`primary${job?.ok ? "" : " disabled"}`}
             href={job?.ok ? job.download : undefined}
-            download
+            download={job?.downloadName}
             aria-disabled={!job?.ok}
             onClick={(e) => !job?.ok && e.preventDefault()}
           >
