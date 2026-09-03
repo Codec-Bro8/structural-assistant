@@ -4,7 +4,12 @@
 // Use raw edge geometry, not label numbering.
 
 const COLUMN_GAP_TOLERANCE = 500; // mm; safe gap threshold for a column face.
-const COORD_CLUSTER_EPS = 5; // mm; tolerance for same track.
+// mm; tolerance for treating two edges as lying on the same track. Real
+// drawings carry small drafting offsets between collinear spans (25mm seen
+// where one continuous beam's spans were drawn slightly out of line), so a
+// tight value splits single beams in two. Kept well under the smallest beam
+// width (150mm) so genuinely parallel beams never collapse together.
+const COORD_CLUSTER_EPS = 25;
 const EDGE_OVERLAP_MIN_FRACTION = 0.8; // min overlap for matching edges.
 const LABEL_MATCH_MARGIN = 300; // mm; label can sit slightly outside a run.
 const MAX_EDGE_PAIR_DISTANCE = 500; // mm; plausible beam width apart.
@@ -190,6 +195,31 @@ function assignLabelsToRuns(beamRuns, labels) {
   return groups.filter((g) => g.labels.length > 0);
 }
 
+// A span label that lands on no edge run is still a beam.
+//
+// The runs are built from the beam edge lines on the plan, and a short beam
+// whose edges are broken up by adjoining slabs or drawn on another layer leaves
+// none for its label to sit on. Dropping the label loses the beam outright: it
+// is never numbered, so its detail is never placed and nothing downstream can
+// tell it apart from a beam that does not exist. So the label becomes a group
+// of its own, standing where the label stands. It is flagged, because a beam
+// with no edges behind it is a weaker reading than one with them.
+function soloGroup(label) {
+  const direction = label.textDirection === "V" ? "V" : "H";
+  const across = direction === "H" ? label.y : label.x;
+  const along = direction === "H" ? label.x : label.y;
+  return {
+    direction,
+    track: across,
+    start: along,
+    end: along,
+    width: label.width,
+    edgePairFound: false,
+    fromLabelAlone: true,
+    labels: [label],
+  };
+}
+
 function mergeBeams(labels, lineSegments) {
   const hEdges = buildEdgeRuns(lineSegments, "H");
   const vEdges = buildEdgeRuns(lineSegments, "V");
@@ -198,6 +228,7 @@ function mergeBeams(labels, lineSegments) {
   const groups = assignLabelsToRuns([...hRuns, ...vRuns], labels);
   const unmatchedLabels = labels.filter((l) => l.unmatched);
   const ambiguousLabels = labels.filter((l) => l.ambiguousWith);
+  for (const l of unmatchedLabels) groups.push(soloGroup(l));
   return { groups, unmatchedLabels, ambiguousLabels };
 }
 
