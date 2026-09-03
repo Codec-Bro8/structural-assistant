@@ -2,7 +2,12 @@
 
 const { walkEntities } = require("./dxf-io");
 
-const BEAM_LABEL_RE = /^(\d+)B(\d+)\s+(\d+)x(\d+)\s*$/;
+// The token before the B says which storey the beam belongs to, and it is not
+// always a number. A suspended floor numbers its beams "1B7"; the ground floor
+// names them by kind instead, "FB44". It is carried through as the string it
+// was written as and never parsed to an integer -- it is a name, and nothing
+// downstream does arithmetic on it.
+const BEAM_LABEL_RE = /^(\d+|[A-Z]{1,3})B(\d+)\s+(\d+)x(\d+)\s*$/;
 
 // Pulls every Beam Label TEXT entity out of the ENTITIES section.
 function extractBeamLabels(lines) {
@@ -23,7 +28,7 @@ function extractBeamLabels(lines) {
       normalizedRotation > 45 && normalizedRotation < 135 ? "V" : "H";
     labels.push({
       mark: `${m[1]}B${m[2]}`,
-      storey: parseInt(m[1], 10),
+      storey: m[1],
       num: parseInt(m[2], 10),
       width: parseInt(m[3], 10),
       depth: parseInt(m[4], 10),
