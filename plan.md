@@ -391,6 +391,77 @@ such a file at all, with no indication which record is at fault. `ensureLayer`
 now matches on case and reuses the spelling the drawing already uses. The same
 rule applies to text styles, so `resolveTextStyle` matches the same way.
 
+### A layer this tool writes has to be a complete record
+
+`1ST 2ND-4TH ROOF.dxf` would not open in AutoCAD, and it took two fixes,
+because it broke two assumptions at once. It is the first drawing to reach the
+tool that is not a Prota export — its header says `$TITLE VectorDraw Document`,
+a job re-saved through another package on the way — and so it is the first
+drawing that does not already define the layers the tool wants to use. Both
+faults were in the code that creates a layer when one is missing, which until
+this file had barely ever run.
+
+The one AutoCAD reports is the second:
+
+    Error in LAYER Table
+    Invalid AcDbLayerTableRecord plot flag for DEFPOINTS layer on line 10224.
+    Invalid or incomplete DXF input -- drawing discarded.
+
+The frame borders are drawn on `Defpoints`, and `ensureLayer` wrote a record
+with no `290` — the plot flag. Prota leaves `290` off most of its own layers
+and AutoCAD is content to default it to "this layer plots", but Defpoints is
+the one layer it has a rule about: Defpoints holds dimension definition points,
+which are never printed, so a Defpoints record that does not say it is
+non-plotting is rejected and the drawing discarded. It goes after the linetype
+and before the lineweight, and is now written on every layer the tool creates —
+`0` for Defpoints, `1` for the rest.
+
+**Every other drawing in `examples/` already defines `Defpoints`**, between
+175 and 3223 times over. On all of them `ensureLayer` found it and returned
+without writing anything, which is why a record the tool had been emitting all
+along was never once read by AutoCAD.
+
+### Every layer an entity names has to exist
+
+The first fault, found before AutoCAD had said anything. The strip's
+dimensions are moved onto `BZ_DIM OUTER` so the strip can be turned off on its
+own. Every
+Prota export the tool had seen defined that layer already, so the code only
+looked the name up and used it as written if the lookup failed. `1ST 2ND-4TH
+ROOF.dxf` does not define it, and neither does `GRD.dxf`. The run put 2296
+entities on a layer with no LAYER record. Nothing warned: the preview drew it,
+because a viewer that cannot find a layer falls back to a default colour and
+carries on, which is exactly what AutoCAD will not do.
+
+Whether this alone would have stopped AutoCAD was never tested and cannot now
+be — it parses the LAYER table first, so it died on the plot flag before it
+reached an entity. It is a real fault regardless, and fixed.
+
+So `BZ_DIM OUTER` is created when it is missing, in colour 1 — the colour
+Prota's own record carries — beside `Defpoints` and `MD-BEAM LABEL`. All three
+are created at the same point in the run and nowhere else: `ensureLayer`
+splices into the LAYER table, which shifts every entity line index after it, so
+it can only be called once the entities have finished being edited by line
+number. The name is still resolved early, where the entities are labelled.
+
+**The general rule: a name written onto an entity is a reference, and every
+reference needs its record.** Layers, text styles, dimension styles, blocks.
+`check-references.js` checks both, kept because nothing in the pipeline can
+catch either by looking at its own state — the output has to be read back:
+
+    node tools/beam-arranger/check-references.js "examples/new/1ST 2ND-4TH ROOF.details.dxf"
+
+It walks `ENTITIES` and `BLOCKS` and confirms every `8`, `7`, `3` and
+`2` resolves in the tables, then checks the Defpoints record's plot flag, and
+exits 1 on either. On the two outputs as they were it names each fault in a
+line: `layer "BZ_DIM OUTER" -- 2296 entities`, and `the "Defpoints" record has
+no 290 plot flag`.
+
+**The lesson worth keeping is which drawing found them.** Six files agreeing
+proves only that six files share a habit. Every assumption here — that the
+layer exists, that a record we write is complete — survived six floors because
+all six came out of the same program. The first file that did not broke both.
+
 ### Dimensions have moved layer between exports
 
 The detail dimensions have arrived on three different layers across exports of
@@ -529,6 +600,7 @@ reported as a warning.
 | `plan-marks.js` | one mark per merged beam on the plan, and the rule for nudging two apart |
 | `dxf-scene.js` | turns a DXF into drawing primitives, for the preview only |
 | `dxf-scene-cli.js` | the command line for that |
+| `check-references.js` | reads an output back and fails it if a layer, style or block it names has no record, or if Defpoints would plot |
 | `validate-against-ground-truth.js` | obsolete, safe to delete |
 | `run-experiment.js` | obsolete, safe to delete |
 

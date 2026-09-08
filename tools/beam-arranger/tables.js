@@ -93,6 +93,11 @@ function findLayer(lines, name) {
   return table ? findEntry(table, name) : null;
 }
 
+// AutoCAD's own non-plotting construction layer. Named here rather than left
+// to the caller: the rule belongs to AutoCAD, not to whoever wants the layer,
+// and a caller that forgot it would produce a file that will not open.
+const NON_PLOTTING = new Set(["defpoints"]);
+
 // Ensures a LAYER exists, creating it if absent. Returns {created, handle}.
 // Mutates `lines` in place; call before computing entity insertion points.
 function ensureLayer(lines, name, color, allocHandle) {
@@ -104,6 +109,7 @@ function ensureLayer(lines, name, color, allocHandle) {
     throw new Error("LAYER table has no ENDTAB — refusing to edit.");
 
   const ptr = layerTemplatePointers(lines, table);
+  const plots = !NON_PLOTTING.has(name.toLowerCase());
   const handle = allocHandle();
 
   const L = [];
@@ -120,6 +126,14 @@ function ensureLayer(lines, name, color, allocHandle) {
   push(70, 0); // not frozen, not locked
   push(62, color); // positive = layer on
   push(6, "Continuous");
+  // 290 is the plot flag, and it goes here -- after the linetype, before the
+  // lineweight. Prota leaves it off most layers and AutoCAD is content to
+  // default it to "plots", but Defpoints is the layer it has a rule about:
+  // Defpoints does not plot, by definition, and a Defpoints record that does
+  // not say so is rejected with "Invalid AcDbLayerTableRecord plot flag" and
+  // the whole drawing discarded. Written for every layer so the record is
+  // complete whichever one this is.
+  push(290, plots ? 1 : 0);
   push(370, 0); // default lineweight
   if (ptr.plotStyle) push(390, ptr.plotStyle);
   if (ptr.material) push(347, ptr.material);

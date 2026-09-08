@@ -83,9 +83,13 @@ const CAPTION_GAP = 500; // between the frame's top rail and the caption's basel
 
 // The strip's dimensions carry the section's own depth and width, and on every
 // finished sheet they are moved onto this layer so the strip can be turned off
-// independently of the elevations' dimensioning. It already exists in Prota's
-// exports, so this only ever re-labels; it never invents a layer.
+// independently of the elevations' dimensioning. Prota's own exports define it
+// already, but not every drawing that reaches us is one -- a file re-saved
+// through another CAD package arrives without it -- and an entity whose layer
+// has no table record is a file AutoCAD refuses to open, so it is created when
+// it is missing rather than assumed.
 const XSEC_DIM_LAYER = "BZ_DIM OUTER";
+const XSEC_DIM_COLOR = 1; // red, the colour Prota's own record carries
 const DIM_LAYERS = new Set([
   "A-Dimension",
   "DIMENSION",
@@ -994,7 +998,9 @@ function buildDetailSheet(options) {
 
   // Use whatever spelling the drawing already has for the strip dimension
   // layer; AutoCAD treats symbol-table names case-insensitively and a second
-  // record differing only in case makes it refuse the whole file.
+  // record differing only in case makes it refuse the whole file. This only
+  // settles the name -- the table record itself is ensured further down, once
+  // nothing is addressing entities by line number any more.
   const xsecDimLayer = findLayer(lines, XSEC_DIM_LAYER) || XSEC_DIM_LAYER;
 
   const ctx = {
@@ -1297,6 +1303,14 @@ function buildDetailSheet(options) {
 
   const layerRes = ensureLayer(lines, frameLayer, 8, hx);
   const markLayerRes = ensureLayer(lines, MARK_LAYER, MARK_COLOR, hx);
+  // Every layer is created here and nowhere else: ensureLayer splices into the
+  // LAYER table, which shifts every entity line index after it, and the
+  // entities have only now finished being edited by line number. Skipped when
+  // the run relabelled nothing, so a drawing with no strip gains no layer.
+  const xsecDimMoved = report.reduce((a, r) => a + r.relayered, 0);
+  const xsecDimLayerRes = xsecDimMoved
+    ? ensureLayer(lines, xsecDimLayer, XSEC_DIM_COLOR, hx)
+    : { created: false };
   bumpHandSeed(lines, nextHandle);
 
   // --- report ---
@@ -1359,8 +1373,9 @@ function buildDetailSheet(options) {
       ` (${spans.join(", ")}mm over ${[...new Set(cutList.map((c) => c.depth))].sort((a, b) => a - b).join(", ")}mm deep beams).`,
   );
   log(
-    `  ${report.reduce((a, r) => a + r.relayered, 0)} strip dimension(s) moved to "${xsecDimLayer}",` +
-      ` ${report.reduce((a, r) => a + r.shrunk, 0)} of them re-lettered at ${XSEC_TEXT_SCALE} of Prota's size.`,
+    `  ${xsecDimMoved} strip dimension(s) moved to "${xsecDimLayer}"` +
+      (xsecDimLayerRes.created ? " (layer created)" : "") +
+      `, ${report.reduce((a, r) => a + r.shrunk, 0)} of them re-lettered at ${XSEC_TEXT_SCALE} of Prota's size.`,
   );
   log(`  ${dropped} entit(ies) deleted from ${[...DROP_LAYERS].join(", ")}.`);
   log(
