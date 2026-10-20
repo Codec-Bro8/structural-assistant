@@ -173,7 +173,7 @@ function collect(lines) {
 // elevation and its grid bubbles a metre above, so a band centred on the
 // elevation loses one end or the other, and the midpoint between two rows cuts
 // through the upper row's titles wherever the rows are close together.
-function buildRows(detail, spanTitles) {
+function buildRows(detail, spanTitles, sectionTitles = []) {
   const el = detail
     .filter((e) => ELEVATION_LAYERS.has(e.layer))
     .sort((a, b) => b.cy - a.cy);
@@ -207,9 +207,49 @@ function buildRows(detail, spanTitles) {
     if (best) best.titles.push(t);
   }
 
+  // A cross-section's "n - n" title hangs below its own row in the same way, and
+  // it is not always above the span titles beside it: on the raft export a
+  // detail with no span title of its own hangs its section title 258mm under
+  // its neighbour's span title. A floor set from span titles alone cuts that
+  // section off into the row below, where it is taken for the next beam's second
+  // section and its elevation is swept into the beam beside it. So the floor
+  // comes from whichever title hangs lowest.
+  //
+  // A section title is not always below its own row, though. Beside a deep
+  // elevation a shallow section's title can sit level with the elevation
+  // itself -- on 1st-sm, 45mm above the row's lowest line -- and handing that
+  // one to the row above drops the row above's floor through the whole row
+  // below. So a title inside a row's own height belongs to that row, and only
+  // one hanging below a row, by no more than a title ever hangs, lowers it.
+  //
+  // A section cut mark hangs the same way, its lower half 600mm or more under
+  // the soffit, and is handled the same way. Cut off into the row below, the
+  // raft's FB40 lost its lower mark to FB42's cross-section, which carried it
+  // up into the strip and renumbered it as FB42's.
+  for (const s of sectionTitles) {
+    let best = rows.find((r) => s.cy >= r.y0 && s.cy <= r.y1) || null;
+    if (!best) {
+      let bestGap = Infinity;
+      for (const r of rows) {
+        const gap = r.y0 - s.cy;
+        if (gap > 0 && gap < bestGap) {
+          bestGap = gap;
+          best = r;
+        }
+      }
+      if (bestGap > DEFAULT_TITLE_DROP) best = null;
+    }
+    if (best && s.cy < best.y0)
+      (best.secTitles || (best.secTitles = [])).push(s);
+  }
+
   rows.forEach((row, i) => {
-    row.floor = row.titles.length
-      ? Math.min(...row.titles.map((t) => t.y)) - TITLE_CLEAR
+    const hung = [
+      ...row.titles.map((t) => t.y),
+      ...(row.secTitles || []).map((s) => s.cy),
+    ];
+    row.floor = hung.length
+      ? Math.min(...hung) - TITLE_CLEAR
       : row.y0 - DEFAULT_TITLE_DROP;
     // Each row reaches up to where the row above stops, so the two partition
     // cleanly with nothing falling between them. The top row has no neighbour,
@@ -779,6 +819,9 @@ function buildDetailSheet(options) {
     const rows = buildRows(
       mine,
       detailTitles.filter((t) => t.storey === storey),
+      mine.filter(
+        (e) => e.layer === "Section Line" || e.layer === "Section Label",
+      ),
     );
     for (const row of rows)
       for (const z of rowZones(

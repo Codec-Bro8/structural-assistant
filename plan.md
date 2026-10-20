@@ -337,6 +337,26 @@ The same fault was on two other samples, unseen:
 The leftover audit could not catch it. It only looks inside a zone, and the
 stranded span was outside one.
 
+### Section titles and cut marks hang below their row
+
+A row's floor, where it hands over to the row below, was set from the span
+titles alone. Two things hang lower:
+- **Section titles.** A raft detail with no span title of its own hangs its
+  `1 - 1` 258mm under its neighbour's span title.
+- **Cut marks.** The lower half of a cut mark sits 600mm or more under the
+  soffit.
+
+Cut off into the row below, a section title was taken for the next beam's
+second section, and its elevation was swept into the beam beside it. FB40's
+lower cut mark was carried up into FB42's strip slot and renumbered `22`.
+
+Both now set the floor, by the same rule as span titles:
+- **One inside a row's own height belongs to that row.** On `1st-sm` a shallow
+  section's title sits level with a deeper elevation, 45mm above its lowest
+  line.
+- **Otherwise it belongs to the nearest row above**, and only if it hangs no
+  more than `DEFAULT_TITLE_DROP` below it.
+
 ### Dimensions are left exactly as Prota drew them
 
 The engineer deletes some short dimensions from the elevations — 42 across the
