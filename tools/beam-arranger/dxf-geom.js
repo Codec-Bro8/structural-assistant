@@ -38,6 +38,9 @@ const POINT_CODES = {
   SOLID: [[10, 20], [11, 21], [12, 22], [13, 23]],
   TRACE: [[10, 20], [11, 21], [12, 22], [13, 23]],
   INSERT: [[10, 20]],
+  // Closes an INSERT's attribute list (Prota's dimension ticks carry one). It
+  // has no coordinates, so moving it is moving nothing.
+  SEQEND: [],
   HATCH: [[10, 20], [11, 21]],
   LEADER: [[10, 20]],
   DIMENSION: [
@@ -129,11 +132,80 @@ function ownPoints(fields, type, lines, start, end) {
   return { xs, ys };
 }
 
+// Where a TEXT actually stands.
+//
+// A TEXT carries two points, and which one AutoCAD draws it at depends on its
+// justification. Left-aligned on the baseline (72 = 0, 73 = 0) it stands at
+// 10/20 and 11/21 means nothing. Justified any other way it stands at 11/21,
+// and AutoCAD recomputes 10/20 from it -- the start of the baseline -- on every
+// regen. Aligned and fit text (72 = 3 or 5) runs from one point to the other.
+//
+// A well-formed export stores that start point, and then both points are real
+// ink: one end of the text and its anchor. Every other sample does. The raft
+// export (prota-raft-agungi.dxf) does not: it fills 10/20 with the start of
+// the bar or detail the label belongs to, so a grid label drawn at x 12930
+// carries a 10/20 at 4602, the left end of the whole detail, and a section mark
+// carries one 3.5m away in the row above. Measured over both points that label
+// was eight metres wide, its centre fell on the wrong beam, and it travelled
+// with that beam or was left behind.
+//
+// So 10/20 is kept only where it agrees with 11/21: no further along the
+// baseline than the text could be long, and offset across it by what the
+// vertical justification puts there. Anything else is not a position.
+const ACROSS = { 0: 0, 1: -0.3, 2: 0.5, 3: 1 }; // anchor above the baseline, in text heights
+
+function textPoints(lines, start, end) {
+  const v = {};
+  let text = "";
+  for (let i = start; i < end; i += 2) {
+    const c = parseInt(lines[i].trim(), 10);
+    if (isNaN(c)) continue;
+    if (c === 101 || c >= 1000) break;
+    if (c === 1) text = lines[i + 1] || "";
+    else if ([10, 20, 11, 21, 40, 50, 72, 73].includes(c) && !(c in v))
+      v[c] = parseFloat(lines[i + 1]);
+  }
+  const first = isFinite(v[10]) && isFinite(v[20]);
+  const second = isFinite(v[11]) && isFinite(v[21]);
+  const horiz = v[72] || 0;
+  const vert = v[73] || 0;
+  if ((horiz === 0 && vert === 0) || !second)
+    return first ? { xs: [v[10]], ys: [v[20]] } : null;
+  if (horiz === 3 || horiz === 5 || !first)
+    return first
+      ? { xs: [v[10], v[11]], ys: [v[20], v[21]] }
+      : { xs: [v[11]], ys: [v[21]] };
+
+  const h = v[40] > 0 ? v[40] : 1;
+  const a = ((v[50] || 0) * Math.PI) / 180;
+  const dx = v[11] - v[10];
+  const dy = v[21] - v[20];
+  const along = dx * Math.cos(a) + dy * Math.sin(a);
+  const across = -dx * Math.sin(a) + dy * Math.cos(a);
+  const wantAcross = (horiz === 4 ? 0.5 : ACROSS[vert] ?? 0) * h;
+  const longest = text.length * h * 1.2 + h;
+  const agrees =
+    Math.abs(across - wantAcross) <= 0.75 * h &&
+    along >= -0.5 * h &&
+    along <= (horiz === 0 ? h : longest);
+  return agrees
+    ? { xs: [v[10], v[11]], ys: [v[20], v[21]] }
+    : { xs: [v[11]], ys: [v[21]] };
+}
+
 // Bounding box of one entity. Pass `lines`/`start`/`end` wherever they are to
 // hand: a HATCH cannot be measured from its grouped fields at all, and for
 // anything carrying an embedded object the grouped fields have already lost the
 // boundary between the entity's own coordinates and the sub-object's.
 function entityBox(fields, type, lines, start, end) {
+  if ((type === "TEXT" || type === "ATTRIB") && lines) {
+    const p = textPoints(lines, start, end);
+    if (!p) return null;
+    return {
+      x0: Math.min(...p.xs), x1: Math.max(...p.xs),
+      y0: Math.min(...p.ys), y1: Math.max(...p.ys),
+    };
+  }
   if (type === "HATCH" && lines) {
     const { boundary } = readHatch(lines, start, end);
     if (!boundary.length) return null;
@@ -186,4 +258,4 @@ function translateRange(lines, start, end, type, dx, dy, unknownTypes) {
   return true;
 }
 
-export { POINT_CODES, readHatch, ownPoints, entityBox, translateRange };
+export { POINT_CODES, readHatch, ownPoints, textPoints, entityBox, translateRange };

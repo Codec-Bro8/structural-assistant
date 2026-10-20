@@ -263,6 +263,47 @@ Numbering in a storey that was regrouped shifts from what it was before.
 `arrange-beams.js`, the older relabel-only driver, never reads the details and
 does not regroup.
 
+### The raft export, and what it broke
+
+`prota-raft-agungi.dxf`, a foundation raft from the AGUNGI job, is the first
+drawing that broke the arranger on every side at once. The old run:
+- left four beams standing where Prota drew them;
+- left the first span of a fifth behind and moved the rest without it;
+- dealt a cut mark to the wrong beam;
+- left 162 bar-mark texts behind and placed the sheet 49m under the plan to
+  clear them.
+
+The engineer's word for the result was "forgetting bars, and in some cases
+scrambling them". It had five separate causes, below.
+
+It lives outside `examples/`, at
+`SIWES-JOB-FILES/AGUNGI/prota-raft-agungi.dxf`. The run the engineer saw is
+in `Downloads/prota-raft-agungi.arranged.dxf`, from the web page, and is byte
+for byte what the code before these fixes writes.
+
+### A justified text stands at 11/21
+
+A TEXT carries two points. Justified other than left-on-the-baseline, AutoCAD
+draws it at 11/21 and recomputes 10/20 itself on every regen.
+- **Prota's own exports** store the real start point in 10/20, so both points
+  are ink.
+- **The raft export** does not. It fills 10/20 with the start of the bar or
+  detail the label belongs to:
+  - grid label `A14`, drawn at x 12930, carries a 10/20 at 4602, the left end
+    of the whole detail;
+  - a section mark carries one 3.5m away in the row above.
+
+`entityBox` measured both points. Those labels came out metres wide, their
+centres fell on the wrong beam, and they travelled with that beam or were left
+behind.
+
+`textPoints` in `dxf-geom.js` keeps 10/20 only where it agrees with 11/21:
+- no further along the baseline than the text could be long;
+- offset across it by what the vertical justification puts there.
+
+Anything else is measured at 11/21 alone. The nine samples in `examples/` come
+out byte for byte the same, because their 10/20 always agrees.
+
 ### Dimensions are left exactly as Prota drew them
 
 The engineer deletes some short dimensions from the elevations — 42 across the
@@ -672,7 +713,7 @@ those runs.
 |---|---|
 | `dxf-io.js` | raw DXF parsing, entity walking, handle allocation — no filesystem |
 | `dxf-io-node.js` | the disk half of it: reading and writing a file |
-| `dxf-geom.js` | entity bounding boxes and rigid translation, incl. the HATCH rules |
+| `dxf-geom.js` | entity bounding boxes and rigid translation, incl. the HATCH and justified-TEXT rules |
 | `number-beams.js` | storey numbering and size labels, shared by both drivers |
 | `detail-sheet.js` | **the arranger** — separates and arranges the detail sheet |
 | `build-details.js` | the command line for it |
