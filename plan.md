@@ -202,7 +202,66 @@ far harder to notice than a beam placed slightly wrongly.
   above can drift right into the next zone; it is recognised by sitting off the
   baseline and dropped. If a genuine collision remains, the zone goes to the
   beam holding most of it and the collision is reported, never silently
-  resolved.
+  resolved. Since the details settle which spans are one beam (next section),
+  that is left for a span titled in two details.
+
+### The details settle which spans are one beam
+
+`merge-beams.js` reads beams off the plan: two edge lines that run on across a
+column are one beam. Prota makes its own call when it details them, and the
+detail is what carries the reinforcement. Spans drawn in one detail, over one
+cross-section, are one continuous beam. Spans drawn in separate details are
+separate beams. So where the two readings disagree, `reconcile-beams.js` lets
+the detail win, and only then are the beams numbered. The plan marks and the
+sheet titles therefore name the same beams.
+
+They disagree both ways, and both used to cost a beam:
+
+- **The plan joins spans Prota detailed apart.** On the roof set, 1B1–1B3 and
+  1B76 run on as one beam on the plan, but 1B76 is detailed in a row of its
+  own. It is a short end span: one grid bubble, an open end and its own
+  section. That beam had two details, could not move as one piece, and was
+  left where it stood.
+- **The plan splits spans Prota detailed together.** 1B83–1B86 are one detail,
+  read off the plan as BEAM 34 and BEAM 35:
+  - BEAM 35 took the whole four-span detail onto the sheet under its own name;
+  - BEAM 34 was reported as having no detail, though its spans were on the
+    sheet inside BEAM 35's.
+
+On the roof set this accounted for all ten beams that were not placed. On
+`GRD` it accounted for one.
+
+Every split the plan made where Prota did not has the same cause:
+- the two runs are collinear;
+- they are broken by a 600–750 gap, a column wider than `COLUMN_GAP_TOLERANCE`
+  (500).
+
+Raising the tolerance was not the fix. It is a guess about the plan, when the
+details already state the answer, and it does nothing for the opposite case,
+where the plan runs on but Prota stops.
+
+The rules:
+- **Prota is silent:** where a span has no detail title, or the detail was
+  already arranged by hand, the plan's reading stands.
+- **The plan's beam is cut:** a span with no detail of its own goes with its
+  nearest neighbour along the run. Each piece's plan mark spans its own part
+  of the run.
+- **Plan beams are joined:** the mark spans the lot, on a length-weighted
+  track.
+- **No disagreement:** the group is handed back as the very object it came in
+  as. A drawing with no disagreement numbers exactly as it always has. Seven
+  of the nine samples come out byte for byte the same.
+
+Every regrouping is a `NOTE` in the run output, stated in the terms of both
+readings. Prota's span labels on the plan can therefore still be matched to
+the sheet:
+
+    NOTE: storey 1 BEAM 33: Prota details 1B86+1B85+1B84+1B83 as one beam where the plan reads 2 (1B86+1B85, 1B84+1B83) -- numbered as one
+    NOTE: storey 1: the plan runs 1B1+1B2+1B3+1B76 on as one beam, but Prota details it apart -- numbered as BEAM 1 (1B1+1B2+1B3) and BEAM 2 (1B76)
+
+Numbering in a storey that was regrouped shifts from what it was before.
+`arrange-beams.js`, the older relabel-only driver, never reads the details and
+does not regroup.
 
 ### Dimensions are left exactly as Prota drew them
 
@@ -574,19 +633,20 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-20):
 | `2nd-BIG.details` | 41 | 13 | 13 | 2 | 5 | 107 | 0 |
 | `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 0 |
 | `grd-floor-halo` | 87 | 32 | 24 | 2 | 8 | 275 | 19 |
-| `GRD` | 85 | 34 | 28 | 2 | 8 | 274 | 16 |
-| `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 120 | 110 | 9 | 33 | 806 | 15 |
+| `GRD` | 85 | 33 | 28 | 2 | 8 | 274 | 15 |
+| `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 6 |
 
 On every one the leftover audit is **0** and `check-references.js` passes.
 
 A beam that is not placed is left exactly where it is and named in a `WARNING`.
-There are two reasons, and only two:
+The only reason left is **no detail zone could be tied to it**:
+- 8 on `grd-floor-halo`. These have no detail drawn, or none with a title (see
+  "A drawing can arrive part-finished").
+- 5 on `GRD`. That drawing also has four cross-sections whose zones hold no
+  span title. The two are probably related, but this has not been looked into.
 
-- **No detail zone could be tied to it** — 8 on `grd-floor-halo`, 6 on `GRD`,
-  7 on the roof set. On `grd-floor-halo` these have no detail drawn, or none
-  with a title (see "A drawing can arrive part-finished").
-- **Drawn as two separate details** in the source, so it cannot move as one
-  piece — 3 on the roof set.
+Before the details settled beam identity, the roof set left 10 beams unplaced
+and `GRD` 6. See "The details settle which spans are one beam".
 
 The rest of the warnings do not unplace anything:
 - A beam wider than the frame gets a row to itself and overhangs it (2 on each
@@ -619,6 +679,7 @@ those runs.
 | `arrange-beams.js` | the older relabel-only driver, still used for plan marks |
 | `extract.js` | pulls beam labels, beam edge lines, detail titles |
 | `merge-beams.js` | works out which spans form one beam, from geometry |
+| `reconcile-beams.js` | regroups those beams where Prota's details group the spans differently |
 | `build-entity.js` | builds the DXF text entity for a beam mark |
 | `tables.js` | makes sure layers and text styles exist before use |
 | `layout-details.js` | detail sheet arrangement |

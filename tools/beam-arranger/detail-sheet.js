@@ -26,6 +26,7 @@ import {
   extractLayoutCaption,
 } from "./extract.js";
 import { mergeBeams } from "./merge-beams.js";
+import { reconcileWithDetails } from "./reconcile-beams.js";
 import { numberBeams, compareStorey } from "./number-beams.js";
 import {
   DETAIL_LAYERS,
@@ -314,42 +315,47 @@ function rowZones(row, sections) {
   return zones.filter((z) => z.elev);
 }
 
+// A zone's own span titles.
+//
+// The titles of one detail share a baseline, and the last title of the detail
+// above can drift far enough right to fall inside this zone -- it is recognised
+// by sitting off the baseline, and dropped. What is kept is the baseline that
+// holds the most titles.
+const TITLE_BASELINE_TOL = 300;
+
+function onBaseline(titles) {
+  if (!titles.length) return [];
+  const bands = [];
+  for (const t of titles.slice().sort((a, b) => a.y - b.y)) {
+    const last = bands[bands.length - 1];
+    if (last && t.y - last.y <= TITLE_BASELINE_TOL) last.items.push(t);
+    else bands.push({ y: t.y, items: [t] });
+  }
+  bands.sort((a, b) => b.items.length - a.items.length);
+  return bands[0].items;
+}
+
 // Which beam a zone belongs to.
 //
 // A zone runs from one cross-section to the next, so its span titles should all
-// belong to one beam. Two things spoil that. The titles of one detail share a
-// baseline, and the last title of the detail above can drift far enough right to
-// fall inside this zone -- it is recognised by sitting off the baseline, and
-// dropped. And where a detail is drawn without its own cross-section, its spans
-// end up in its neighbour's zone; there is no way to give it a section it does
-// not have, so the zone goes to the beam holding most of it and the collision is
-// reported rather than resolved silently.
+// belong to one beam, and since reconcileWithDetails numbers beams the way
+// Prota detailed them they normally do. Where they still do not -- a span whose
+// title turned up in two details -- the zone goes to the beam holding most of
+// it and the collision is reported rather than resolved silently.
 //
 // The one thing never done here is to give up. Returning no owner strands the
 // zone, and a beam with no zone is dropped from the sheet altogether -- a beam
 // placed slightly wrongly can be seen and fixed; a beam that is simply absent
 // cannot.
-const TITLE_BASELINE_TOL = 300;
-
 function zoneOwner(zone, byMark) {
-  const known = zone.titles
-    .map((t) => ({ t, beam: byMark.get(t.mark) }))
-    .filter((r) => r.beam);
+  const known = zone.titles.filter((t) => byMark.has(t.mark));
   if (!known.length) return { key: null };
 
-  // Keep only the titles on the baseline that holds the most of them.
-  const bands = [];
-  for (const r of known.slice().sort((a, b) => a.t.y - b.t.y)) {
-    const last = bands[bands.length - 1];
-    if (last && r.t.y - last.y <= TITLE_BASELINE_TOL) last.items.push(r);
-    else bands.push({ y: r.t.y, items: [r] });
-  }
-  bands.sort((a, b) => b.items.length - a.items.length);
-  const onBaseline = bands[0].items;
-
   const counts = new Map();
-  for (const r of onBaseline)
-    counts.set(r.beam.key, (counts.get(r.beam.key) || 0) + 1);
+  for (const t of onBaseline(known)) {
+    const k = byMark.get(t.mark).key;
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
   const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
   const key = ranked[0][0];
   const note =
@@ -693,9 +699,7 @@ function buildDetailSheet(options) {
   const REPLACE_SPAN_LABELS = Boolean(options.replaceSpanLabels);
   const labels = extractBeamLabels(lines);
   const segments = extractBeamLineSegments(lines, ["Beam Line"]);
-  const { groups } = mergeBeams(labels, segments);
-  const { beams, byMark } = numberBeams(groups);
-  log(`${srcName}: ${labels.length} span labels -> ${beams.length} beams.`);
+  const { groups: planGroups } = mergeBeams(labels, segments);
 
   const { detail, all } = collect(lines);
   const detailTitles = extractDetailBeamTitles(lines);
@@ -719,40 +723,83 @@ function buildDetailSheet(options) {
     (e) => e.text && SECTION_TITLE_RE.test(e.text.trim()),
   );
 
-  const allStoreys = [...new Set(beams.map((b) => b.storey))].sort(compareStorey);
+  // The storeys numberBeams will keep: a group spanning two is rejected there.
+  const allStoreys = [
+    ...new Set(
+      planGroups
+        .filter((g) => new Set(g.labels.map((l) => l.storey)).size === 1)
+        .map((g) => g.labels[0].storey),
+    ),
+  ].sort(compareStorey);
   const STOREYS = STOREY_FLAG ? [String(STOREY_FLAG)] : allStoreys;
 
   // Rows and zones are worked out one storey at a time; see partitionByStorey.
+  // They come from the detail sheet alone, so they are found before any beam is
+  // numbered: Prota's own grouping of spans into details is what settles a
+  // beam wherever the plan reads it differently.
   const perStorey = partitionByStorey(raw, detailTitles, allStoreys);
-  const zonesByBeam = new Map();
-  const unresolved = [];
+  const zones = [];
   for (const [storey, mine] of perStorey) {
     const owned = new Set(mine);
     const rows = buildRows(
       mine,
       detailTitles.filter((t) => t.storey === storey),
     );
-    for (const row of rows) {
-      for (const z of rowZones(row, sections.filter((s) => owned.has(s)))) {
-        const owner = zoneOwner(z, byMark);
-        if (!owner.key) {
-          unresolved.push(
-            `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)} y=${z.sec.cy.toFixed(0)} resolves to no beam (titles: ${z.titles.map((t) => t.mark).join(",") || "none"})`,
-          );
-          continue;
-        }
-        if (owner.note)
-          unresolved.push(
-            `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)}: ${owner.note}`,
-          );
-        if (zonesByBeam.has(owner.key)) zonesByBeam.get(owner.key).push(z);
-        else zonesByBeam.set(owner.key, [z]);
-      }
+    for (const row of rows)
+      for (const z of rowZones(row, sections.filter((s) => owned.has(s))))
+        zones.push({ ...z, storey });
+  }
+  const spanMarks = new Set(labels.map((l) => l.mark));
+  for (const z of zones)
+    z.marks = onBaseline(z.titles.filter((t) => spanMarks.has(t.mark))).map(
+      (t) => t.mark,
+    );
+
+  const settled = reconcileWithDetails(planGroups, zones);
+  const { beams, byMark } = numberBeams(settled.groups);
+  log(`${srcName}: ${labels.length} span labels -> ${beams.length} beams.`);
+
+  const zonesByBeam = new Map();
+  const unresolved = [];
+  for (const z of zones) {
+    const storey = z.storey;
+    const owner = zoneOwner(z, byMark);
+    if (!owner.key) {
+      unresolved.push(
+        `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)} y=${z.sec.cy.toFixed(0)} resolves to no beam (titles: ${z.titles.map((t) => t.mark).join(",") || "none"})`,
+      );
+      continue;
     }
+    if (owner.note)
+      unresolved.push(
+        `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)}: ${owner.note}`,
+      );
+    if (zonesByBeam.has(owner.key)) zonesByBeam.get(owner.key).push(z);
+    else zonesByBeam.set(owner.key, [z]);
   }
 
   const problems = [];
   const notes = [];
+  // Every beam the details regrouped is reported in the terms of both readings,
+  // so the plan's own span labels can still be matched to what the sheet shows.
+  for (const s of settled.splits) {
+    const pieces = s.into.map((ms) => byMark.get(ms[0]));
+    if (!STOREYS.includes(pieces[0].storey)) continue;
+    notes.push(
+      `storey ${pieces[0].storey}: the plan runs ${s.from.join("+")} on as one beam, but Prota details it apart -- numbered as ` +
+        pieces.map((b, k) => `BEAM ${b.num} (${s.into[k].join("+")})`).join(" and "),
+    );
+  }
+  for (const b of beams) {
+    if (!STOREYS.includes(b.storey) || !b.group.joinedFrom) continue;
+    notes.push(
+      `storey ${b.storey} BEAM ${b.num}: Prota details ${b.marks.join("+")} as one beam where the plan reads ` +
+        `${b.group.joinedFrom.length} (${b.group.joinedFrom.map((ms) => ms.join("+")).join(", ")}) -- numbered as one` +
+        (b.group.turnsCorner ? "; its spans turn a corner, so its plan mark lies along the longest run" : ""),
+    );
+  }
+  for (const m of settled.twice)
+    notes.push(`span ${m} is titled in more than one detail -- the first one read decides its beam`);
   const jobs = [];
   for (const storey of STOREYS) {
     const wanted = beams
