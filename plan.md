@@ -379,6 +379,50 @@ Both layers are now in `DETAIL_LAYERS`, and an empty text is a rider:
 Counted as ink, their stray coordinates made the roof set's frames 20m taller.
 The roof set's sheet now lands 6.6m under its plan, the raft's 6.4m.
 
+### A detail with no title is tied by its grid and its bars
+
+The raft draws four beams in full, section and all, and titles none of them:
+FB26, FB27, FB39 and FB40. With no title there was nothing to tie them to a
+beam, and they stood where Prota drew them. `grid-ties.js` ties such a detail
+to a beam left without one, using three tests.
+
+1. **Grid names.** A beam starts and ends at grid lines, and its detail opens
+   and closes on bubbles with those lines' names. On the plan each bubble goes
+   to the one grid line whose axis it sits closest to.
+2. **Bar order.** Names do not settle it alone. A20 and A21 are drawn 153mm
+   apart, so FB26 and FB40 each match both the A20–A26 and the A21–A26 detail.
+   - Prota numbers new bars in span order, so a detail's highest bar mark lies
+     between the highest marks of the titled beams either side of its span.
+     The A20–A26 detail tops out at 61, between FB25's 57 and FB28's 65, so it
+     is FB26.
+   - Only the highest mark counts. A bar identical to one already detailed
+     takes that mark again: FB42's side bars are 61, first used by FB26.
+3. **Bubble count.** A continuous beam has a bubble at every support. On GRD,
+   single-span FB82 fits both `12–A10` and `13–14–A10`, and only the first has
+   two bubbles.
+
+A beam is tied only when this leaves it one detail and that detail one beam.
+Anything less certain stays where it is, reported, because guessing a beam's
+detail is worse than leaving it.
+
+Length was tried first and dropped. How far a run stops short of its grid lines
+varies from 115 to 230mm on the raft, and fitting the median paired FB26 and
+FB40 the wrong way round.
+
+A tied beam has no span title to retitle, so it gets a copy of a beam title
+already on the sheet: same layer, style, height and colour.
+
+Results:
+- **Raft:** all four tied. Each run is exactly 230mm short of its detail's
+  bubble span, as are the titled single spans beside them.
+- **GRD:** two tied.
+- **`grd-floor-halo`:** three tied. Its untitled details carry no bar marks on
+  the usual layers, so grid names and bubble count decide there. GRD and
+  `grd-floor-halo` are the same floor exported twice, and their tied beams
+  match: the same 4988 and 7725mm runs to the same 5438 and 8325mm details.
+
+Every tie is a `NOTE` naming the grid and the bars it rests on.
+
 ### Dimensions are left exactly as Prota drew them
 
 The engineer deletes some short dimensions from the elevations — 42 across the
@@ -748,21 +792,29 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-20):
 | `1st-BIG.details` | 51 | 14 | 14 | 2 | 5 | 134 | 0 |
 | `2nd-BIG.details` | 41 | 13 | 13 | 2 | 5 | 107 | 0 |
 | `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 0 |
-| `grd-floor-halo` | 87 | 32 | 24 | 2 | 8 | 275 | 19 |
-| `GRD` | 85 | 33 | 28 | 2 | 8 | 274 | 15 |
-| `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 6 |
+| `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 16 |
+| `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 13 |
+| `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 5 |
+| `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 4 |
 
-On every one the leftover audit is **0** and `check-references.js` passes.
+On every one the leftover audit is **0**. `check-references.js` passes on all
+but the raft, which fails only on layers and styles its own source names
+without defining (`Column Size Label`, `Axis Line(Dir 1)` and others). None of
+them is one the arranger writes.
+
+The old run, on the raft, placed 18 of 22. It moved BEAM 7 without its first
+span and left 162 bar marks behind.
 
 A beam that is not placed is left exactly where it is and named in a `WARNING`.
 The only reason left is **no detail zone could be tied to it**:
-- 8 on `grd-floor-halo`. These have no detail drawn, or none with a title (see
+- 5 on `grd-floor-halo`. These have no detail drawn, or none with a title (see
   "A drawing can arrive part-finished").
-- 5 on `GRD`. That drawing also has four cross-sections whose zones hold no
-  span title. The two are probably related, but this has not been looked into.
+- 3 on `GRD`. That drawing still has two cross-sections whose zones hold no
+  span title, and whose grid names and bar marks fit none of those beams.
 
 Before the details settled beam identity, the roof set left 10 beams unplaced
-and `GRD` 6. See "The details settle which spans are one beam".
+and `GRD` 6. Before untitled details were tied, `GRD` left 5 and
+`grd-floor-halo` 8.
 
 The rest of the warnings do not unplace anything:
 - A beam wider than the frame gets a row to itself and overhangs it (2 on each
@@ -770,11 +822,13 @@ The rest of the warnings do not unplace anything:
 - A cut mark with no clear spot in its span goes to the least obstructed one.
 - One oversized section on each of `grd-floor-halo` and the roof set takes two
   strip slots.
-- One beam on each of `grd-floor-halo` and the roof set has no span title to
-  re-use as its beam title.
 
-`GRD` and the roof set have no layout caption, so their frames read plain
-`BEAM DETAILS`.
+`GRD`, the roof set and the raft have no layout caption, so their frames read
+plain `BEAM DETAILS`.
+
+**The leftover audit has a blind spot.** It checks what stood inside a moved
+beam's zone. A span stranded outside every zone, as FB16 was, is invisible to
+it. Three drawings carried one, and the audit reported 0 on each.
 
 The tool was first built on `procta-beam-1.dxf`, which is no longer in
 `examples/`. There it turned 102 span labels into 43 beams and placed 42, with
@@ -796,6 +850,7 @@ those runs.
 | `extract.js` | pulls beam labels, beam edge lines, detail titles |
 | `merge-beams.js` | works out which spans form one beam, from geometry |
 | `reconcile-beams.js` | regroups those beams where Prota's details group the spans differently |
+| `grid-ties.js` | ties a detail with no span title to its beam, by grid names, bar order and bubble count |
 | `build-entity.js` | builds the DXF text entity for a beam mark |
 | `tables.js` | makes sure layers and text styles exist before use |
 | `layout-details.js` | detail sheet arrangement |

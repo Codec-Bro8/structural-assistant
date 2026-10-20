@@ -27,6 +27,7 @@ import {
 } from "./extract.js";
 import { mergeBeams } from "./merge-beams.js";
 import { reconcileWithDetails } from "./reconcile-beams.js";
+import { tieByGrid } from "./grid-ties.js";
 import { numberBeams, compareStorey } from "./number-beams.js";
 import {
   DETAIL_LAYERS,
@@ -865,23 +866,43 @@ function buildDetailSheet(options) {
   log(`${srcName}: ${labels.length} span labels -> ${beams.length} beams.`);
 
   const zonesByBeam = new Map();
-  const unresolved = [];
+  let unresolved = [];
+  const orphans = [];
   for (const z of zones) {
     const storey = z.storey;
     const owner = zoneOwner(z, byMark);
     if (!owner.key) {
-      unresolved.push(
-        `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)} y=${z.sec.cy.toFixed(0)} resolves to no beam (titles: ${z.titles.map((t) => t.mark).join(",") || "none"})`,
-      );
+      orphans.push(z);
+      unresolved.push({
+        zone: z,
+        text: `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)} y=${z.sec.cy.toFixed(0)} resolves to no beam (titles: ${z.titles.map((t) => t.mark).join(",") || "none"})`,
+      });
       continue;
     }
     if (owner.note)
-      unresolved.push(
-        `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)}: ${owner.note}`,
-      );
+      unresolved.push({
+        zone: z,
+        text: `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)}: ${owner.note}`,
+      });
     if (zonesByBeam.has(owner.key)) zonesByBeam.get(owner.key).push(z);
     else zonesByBeam.set(owner.key, [z]);
   }
+
+  // A detail with no span title is tied to its beam by its grid bubbles; see
+  // grid-ties.js. Only beams nothing else claimed, and only details nothing
+  // else claimed, take part.
+  const byKey = new Map(beams.map((b) => [b.key, b]));
+  const gridTies = tieByGrid({
+    orphans,
+    loose: beams.filter((b) => !zonesByBeam.has(b.key)),
+    tied: [...zonesByBeam.entries()]
+      .filter(([, zs]) => zs.length === 1)
+      .map(([key, zs]) => ({ beam: byKey.get(key), zone: zs[0] })),
+    all,
+  });
+  for (const t of gridTies.ties) zonesByBeam.set(t.beam.key, [t.zone]);
+  const tiedZones = new Set(gridTies.ties.map((t) => t.zone));
+  unresolved = unresolved.filter((u) => !tiedZones.has(u.zone)).map((u) => u.text);
 
   const problems = [];
   const notes = [];
@@ -905,6 +926,14 @@ function buildDetailSheet(options) {
   }
   for (const m of settled.twice)
     notes.push(`span ${m} is titled in more than one detail -- the first one read decides its beam`);
+  for (const t of gridTies.ties) {
+    if (!STOREYS.includes(t.beam.storey)) continue;
+    notes.push(
+      `storey ${t.beam.storey} BEAM ${t.beam.num} (${t.beam.marks.join("+")}): its detail has no span title -- tied to it by grid ${t.names.join("-")}` +
+        (t.bars ? ` and bars ${t.bars.lo}-${t.bars.hi}, in span order` : ", the only detail on those grid lines"),
+    );
+  }
+  const unsureKeys = new Set(gridTies.unsure.map((u) => u.beam.key));
   const jobs = [];
   for (const storey of STOREYS) {
     const wanted = beams
@@ -917,7 +946,12 @@ function buildDetailSheet(options) {
       const key = beam.key;
       const zs = zonesByBeam.get(key);
       if (!zs) {
-        problems.push(`storey ${storey} BEAM ${n}: no detail zone could be tied to it`);
+        const u = unsureKeys.has(key) && gridTies.unsure.find((v) => v.beam.key === key);
+        problems.push(
+          u
+            ? `storey ${storey} BEAM ${n}: no titled detail, and ${u.why} -- left for a human`
+            : `storey ${storey} BEAM ${n}: no detail zone could be tied to it`,
+        );
         continue;
       }
       if (zs.length > 1) {
@@ -1172,6 +1206,7 @@ function buildDetailSheet(options) {
   };
 
   const report = [];
+  const untitled = []; // beams placed with no span title of their own to retitle
   for (const frame of frames) {
     frame.rows.forEach((row, rowIdx) => {
       let cursor = CONTENT_LEFT;
@@ -1234,18 +1269,13 @@ function buildDetailSheet(options) {
         // in depth, which reads as a mistake even though every title is
         // correctly placed.
         const keeper = j.titles[0] || null;
-        if (keeper) {
-          placeTitle(
-            lines, keeper,
-            (j.elevBox.x0 + j.elevBox.x1) / 2 + lonDx,
-            row.baseline - row.below - TITLE_GAP,
-            `%%UBEAM ${j.num}`,
-          );
-        } else {
-          problems.push(
-            `storey ${j.storey} BEAM ${j.num}: no span title to re-use as its beam title`,
-          );
-        }
+        const titleAt = {
+          x: (j.elevBox.x0 + j.elevBox.x1) / 2 + lonDx,
+          y: row.baseline - row.below - TITLE_GAP,
+          text: `%%UBEAM ${j.num}`,
+        };
+        if (keeper) placeTitle(lines, keeper, titleAt.x, titleAt.y, titleAt.text);
+        else untitled.push({ j, ...titleAt });
         report.push({
           j, frame, row, rowIdx, cursor, lonDx, lonDy, xsecAt, sec, keeper, cuts, relayered, shrunk,
           frameNo: frames.indexOf(frame) + 1,
@@ -1299,6 +1329,26 @@ function buildDetailSheet(options) {
     if (owner === null && fields.has("330")) owner = fields.get("330")[0].trim();
   });
   owner = owner || "1F";
+
+  // A beam whose detail carried no span title -- one tied to its beam by its
+  // grid -- has nothing to retitle, and a beam with no title on the sheet
+  // cannot be told from its neighbours. It gets a copy of a title already on
+  // the sheet, so it shares that title's layer, style, height and colour, with
+  // its own handle, text and place.
+  const template = (report.find((r) => r.keeper) || {}).keeper || null;
+  const madeTitles = [];
+  for (const u of untitled) {
+    if (!template) {
+      problems.push(`storey ${u.j.storey} BEAM ${u.j.num}: no beam title on the sheet to copy one from -- left untitled`);
+      continue;
+    }
+    const t = lines.slice(template.start, template.end);
+    for (let i = 0; i < t.length - 1; i += 2)
+      if (t[i].trim() === "5") { t[i + 1] = hx(); break; }
+    placeTitle(t, { start: 0, end: t.length }, u.x, u.y, u.text);
+    madeTitles.push(t);
+    notes.push(`storey ${u.j.storey} BEAM ${u.j.num}: its detail had no span title -- given a beam title of its own`);
+  }
 
   // Label the frame with whatever spelling this drawing already uses, so we
   // never add a second record differing only in case.
@@ -1459,7 +1509,7 @@ function buildDetailSheet(options) {
     }
   }
   if (insertAt === -1) throw new Error("Could not relocate ENTITIES after edits.");
-  lines.splice(insertAt, 0, ...frameLines.flat(), ...planMarkLines.flat());
+  lines.splice(insertAt, 0, ...frameLines.flat(), ...madeTitles.flat(), ...planMarkLines.flat());
 
   const layerRes = ensureLayer(lines, frameLayer, 8, hx);
   const markLayerRes = ensureLayer(lines, MARK_LAYER, MARK_COLOR, hx);
