@@ -49,7 +49,12 @@ const positional = argv.filter((a) => !a.startsWith("--"));
 // Sheet arrangement moves every detail on the drawing, so it is opt-in: pass
 // --layout to rearrange, and the run stays a pure relabel without it.
 const doLayout = flags.has("--layout");
-const srcName = positional[0] || "procta-beam-1.dxf";
+// No default drawing, for the same reason as build-details.js.
+const srcName = positional[0];
+if (!srcName) {
+  console.error("usage: node arrange-beams.js <drawing.dxf> [suffix] [--layout]");
+  process.exit(1);
+}
 const suffix = positional[1] ? `-${positional[1]}` : "";
 const SRC = path.join(__dirname, "..", "..", "examples", srcName);
 const OUT = path.join(

@@ -2,12 +2,11 @@
 
 // The command line for detail-sheet.js.
 //
-//   node build-details.js                          # every storey, every beam
-//   node build-details.js myfile.dxf               # a different drawing
-//   node build-details.js --storey=2               # one storey only
-//   node build-details.js --first=1 --last=10      # a range within each storey
-//   node build-details.js --out=trial.dxf          # a different output name
-//   node build-details.js --replace-span-labels    # drop Prota's span labels
+//   node build-details.js myfile.dxf                        # every storey, every beam
+//   node build-details.js myfile.dxf --storey=2             # one storey only
+//   node build-details.js myfile.dxf --first=1 --last=10    # a range within each storey
+//   node build-details.js myfile.dxf --out=trial.dxf        # a different output name
+//   node build-details.js myfile.dxf --replace-span-labels  # drop Prota's span labels
 //
 // The arranging itself lives in detail-sheet.js, which never touches a disk,
 // so the same code runs here and in the browser. This file is the half that
@@ -31,7 +30,16 @@ const flags = new Map(
       return [k, v === undefined ? true : v];
     }),
 );
-const srcName = argv.find((a) => !a.startsWith("--")) || "procta-beam-1.dxf";
+// There is no default drawing. The one this used to fall back on is no longer
+// in examples/, and a run against whichever file happens to be there is not a
+// run anyone asked for.
+const srcName = argv.find((a) => !a.startsWith("--"));
+if (!srcName) {
+  console.error(
+    "usage: node build-details.js <drawing.dxf> [--storey=N] [--first=N] [--last=N] [--out=NAME] [--replace-span-labels]",
+  );
+  process.exit(1);
+}
 
 const ROOT = path.join(__dirname, "..", "..");
 // A bare name is looked up in examples/, as it always has been. An absolute

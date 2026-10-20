@@ -21,8 +21,9 @@ Two things worth knowing about these files, both of which cost time to work out:
 **Each file holds two separate drawings** in one model space, at different
 coordinates. The Prota beam plan is on layers `Beam Line` / `Beam Label`, and
 the engineer's own structural GA plan is on `ET_BEAMS OUTER` / `ET_COLUMN` /
-`S-GRID`. In `procta-beam-1.dxf` the Prota plan sits at y 4599969–4611536 and
-the GA plan at y 4611048–4619371.
+`S-GRID`. In `procta-beam-1.dxf`, the first drawing the tool was built on and
+no longer in `examples/`, the Prota plan sits at y 4599969–4611536 and the GA
+plan at y 4611048–4619371.
 
 **`procta-beam-1.dxf` already contains 21 hand-placed marks** of the engineer's
 own, on that GA plan. They are not our output and predate the tool. So an
@@ -42,8 +43,8 @@ own version of that drawing also has 43. That match is the main evidence the
 approach is right.
 
 Decision made: we do **not** validate against the engineer's hand-drawn marks.
-The geometric derivation stands on its own. `validate-against-ground-truth.js`
-exists but is obsolete and can be deleted.
+The geometric derivation stands on its own. The script that did,
+`validate-against-ground-truth.js`, has been deleted.
 
 ### 2. Labelling
 
@@ -481,12 +482,15 @@ the number of dimensions moved.
 Put the DXF in `examples/`, then from `tools/beam-arranger/`:
 
 ```
-node build-details.js                          # every storey, every beam
-node build-details.js myfile.dxf               # a different drawing
-node build-details.js --storey=2               # one storey only
-node build-details.js --first=1 --last=10      # a range within each storey
-node build-details.js --out=trial.dxf          # a different output name
+node build-details.js myfile.dxf                        # every storey, every beam
+node build-details.js myfile.dxf --storey=2             # one storey only
+node build-details.js myfile.dxf --first=1 --last=10    # a range within each storey
+node build-details.js myfile.dxf --out=trial.dxf        # a different output name
 ```
+
+There is no default drawing: run without a name, it prints its usage and stops.
+A bare name is looked up in `examples/`; an absolute path is taken as given, and
+so is an absolute `--out`.
 
 Output goes to `examples/new/<name>.details.dxf`. **The source file is never
 modified**, so a run is always safe to repeat. Close the output in AutoCAD
@@ -559,26 +563,48 @@ the engineer's own sheet or off the source geometry:
 
 ## Current results
 
-`procta-beam-1.dxf`, all storeys, one run:
+Every drawing in `examples/`, all storeys, one run each (2026-10-20):
 
-| | |
-|---|---|
-| span labels in | 102 |
-| beams out | 43 (22 storey 1, 21 storey 2) |
-| beams separated and placed | 42 |
-| frames | 4 (2 per storey) |
-| rows | 11 |
-| entities moved | 5360 |
-| surplus span titles removed | 58 |
-| dimension blocks moved | 268 |
-| leftover audit | **0** |
-| arrowhead fills detached from their outline | **0 of 388** |
-| row overlaps | **0** |
-| cross-section spacing | 2188mm, even on every strip line |
+| drawing | span labels | beams | placed | frames | rows | dimension blocks moved | warnings |
+|---|---|---|---|---|---|---|---|
+| `1st-sm` | 40 | 12 | 12 | 1 | 4 | 94 | 1 |
+| `2nd-sm` | 26 | 10 | 10 | 1 | 3 | 66 | 0 |
+| `3rd-sm` | 23 | 11 | 11 | 1 | 3 | 45 | 0 |
+| `1st-BIG.details` | 51 | 14 | 14 | 2 | 5 | 134 | 0 |
+| `2nd-BIG.details` | 41 | 13 | 13 | 2 | 5 | 107 | 0 |
+| `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 0 |
+| `grd-floor-halo` | 87 | 32 | 24 | 2 | 8 | 275 | 19 |
+| `GRD` | 85 | 34 | 28 | 2 | 8 | 274 | 16 |
+| `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 120 | 110 | 9 | 33 | 806 | 15 |
 
-One beam is not placed: storey 2 beam 9 is drawn as two separate details in the
-source, so it cannot move as one piece. It is left exactly where it is and
-reported as a warning.
+On every one the leftover audit is **0** and `check-references.js` passes.
+
+A beam that is not placed is left exactly where it is and named in a `WARNING`.
+There are two reasons, and only two:
+
+- **No detail zone could be tied to it** — 8 on `grd-floor-halo`, 6 on `GRD`,
+  7 on the roof set. On `grd-floor-halo` these have no detail drawn, or none
+  with a title (see "A drawing can arrive part-finished").
+- **Drawn as two separate details** in the source, so it cannot move as one
+  piece — 3 on the roof set.
+
+The rest of the warnings do not unplace anything:
+- A beam wider than the frame gets a row to itself and overhangs it (2 on each
+  ground floor, 3 on the roof set).
+- A cut mark with no clear spot in its span goes to the least obstructed one.
+- One oversized section on each of `grd-floor-halo` and the roof set takes two
+  strip slots.
+- One beam on each of `grd-floor-halo` and the roof set has no span title to
+  re-use as its beam title.
+
+`GRD` and the roof set have no layout caption, so their frames read plain
+`BEAM DETAILS`.
+
+The tool was first built on `procta-beam-1.dxf`, which is no longer in
+`examples/`. There it turned 102 span labels into 43 beams and placed 42, with
+0 of 388 arrowhead fills detached from their outlines. The 43rd was drawn as two
+separate details. The figures quoted for that file elsewhere here come from
+those runs.
 
 ## Files
 
@@ -601,8 +627,6 @@ reported as a warning.
 | `dxf-scene.js` | turns a DXF into drawing primitives, for the preview only |
 | `dxf-scene-cli.js` | the command line for that |
 | `check-references.js` | reads an output back and fails it if a layer, style or block it names has no record, or if Defpoints would plot |
-| `validate-against-ground-truth.js` | obsolete, safe to delete |
-| `run-experiment.js` | obsolete, safe to delete |
 
 ## The web front end
 
