@@ -304,6 +304,39 @@ behind.
 Anything else is measured at 11/21 alone. The nine samples in `examples/` come
 out byte for byte the same, because their 10/20 always agrees.
 
+### A span can be drawn on its faces alone
+
+A zone used to start where its first Front/Back Elevation Line starts. The
+raft's FB16, the first 3.5m of its beam, has none. It is drawn on the beam's
+own outline only, so the zone began at FB16's far end, and FB16 stayed behind
+with everything on it:
+- bubble A10;
+- `3Y20-31`, `2Y16-32` and `14x1Y10-3-250`;
+- its cut mark and its title.
+
+That left exactly the fragment the TIDY-BEAM brief calls the orphaned span:
+one grid bubble, an open end, no section. BEAM 7 went onto the sheet without
+it.
+
+`rowZones` now carries a zone's left end on along the beam's faces:
+- horizontal `Beam Line(D)` level with the elevation;
+- each line touching the one before;
+- never past the section of the detail to its left.
+
+Only a run of 500mm or more counts (`FACE_SPAN_MIN`). The outline routinely
+overshoots the elevation lines by 3 to 240mm over a support, and following that
+only shifts titles that were already right.
+
+The same fault was on two other samples, unseen:
+
+| drawing | BEAM 7 was moved as | now |
+|---|---|---|
+| roof set (storey 1) | a 225mm stub, no cut marks | 1516mm, both cut marks |
+| `grd-floor-halo` | a 300mm stub, no cut marks | 1848mm, both cut marks |
+
+The leftover audit could not catch it. It only looks inside a zone, and the
+stranded span was outside one.
+
 ### Dimensions are left exactly as Prota drew them
 
 The engineer deletes some short dimensions from the elevations — 42 across the

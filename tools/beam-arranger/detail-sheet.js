@@ -270,7 +270,25 @@ function partitionByStorey(detail, spanTitles, storeys) {
 // view of the beam already found, so it joins that zone instead of opening a
 // new one. A section that opens a row with nothing to its left has no zone to
 // join and is still dropped, as it always was.
-function rowZones(row, sections) {
+//
+// The elevation lines say where a detail starts, but not always all of it. On
+// the raft export the first span of a detail can be drawn on the beam's own
+// outline alone, with no Front or Back Elevation Line under it -- FB16, the
+// first 3.5m of its beam. A zone that starts where the elevation lines start
+// leaves that span behind, bubble, callouts and all, as a fragment with one
+// grid bubble and an open end, and moves the rest without it. So a zone's left
+// end is carried on along the beam's faces: horizontal outline lines level
+// with the elevation, each touching the one before, never past the section of
+// the detail to the left.
+//
+// Only a run of real length counts. The outline routinely overshoots the
+// elevation lines by a few hundred millimetres where it runs on over the
+// support -- 3 to 240mm across the other samples -- and following that only
+// shifts a title that was already right. A span is metres long.
+const FACE_JOIN = 50; // largest break in a face line that is still one beam
+const FACE_SPAN_MIN = 500; // shortest run of faces taken for a span of its own
+
+function rowZones(row, sections, faces = []) {
   const secs = sections
     .filter((s) => s.cy >= row.band.y0 && s.cy <= row.band.y1)
     .sort((a, b) => a.cx - b.cx);
@@ -295,11 +313,28 @@ function rowZones(row, sections) {
         ? {
             x0: Math.min(...own.map((e) => e.x0)),
             x1: Math.max(...own.map((e) => e.x1)),
+            y0: Math.min(...own.map((e) => e.y0)),
+            y1: Math.max(...own.map((e) => e.y1)),
           }
         : null,
       band: row.band,
     });
     left = sec.cx;
+  }
+  for (const z of zones) {
+    if (!z.elev) continue;
+    let x0 = z.elev.x0;
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const f of faces) {
+        if (f.cy < z.elev.y0 - 5 || f.cy > z.elev.y1 + 5) continue;
+        if (f.x0 >= x0 - 1 || f.x1 < x0 - FACE_JOIN || f.x0 <= z.left) continue;
+        x0 = f.x0;
+        grew = true;
+      }
+    }
+    if (z.elev.x0 - x0 >= FACE_SPAN_MIN)
+      z.elev = { ...z.elev, x0, onFaces: z.elev.x0 - x0 };
   }
   // A zone reaches right until the next beam's elevation begins, measured from
   // its last section rather than its first so a second one is inside it.
@@ -746,7 +781,11 @@ function buildDetailSheet(options) {
       detailTitles.filter((t) => t.storey === storey),
     );
     for (const row of rows)
-      for (const z of rowZones(row, sections.filter((s) => owned.has(s))))
+      for (const z of rowZones(
+        row,
+        sections.filter((s) => owned.has(s)),
+        mine.filter((e) => e.layer === "Beam Line(D)" && e.y1 - e.y0 < 1),
+      ))
         zones.push({ ...z, storey });
   }
   const spanMarks = new Set(labels.map((l) => l.mark));
@@ -827,6 +866,14 @@ function buildDetailSheet(options) {
       if (!lonBox || !elevBox) {
         problems.push(`storey ${storey} BEAM ${n}: no longitudinal geometry`);
         continue;
+      }
+      // A span drawn on the faces alone is still elevation: the title centres
+      // under the whole beam and the cut mark may stand in that span too.
+      if (zs[0].elev.onFaces) {
+        elevBox.x0 = Math.min(elevBox.x0, zs[0].elev.x0);
+        notes.push(
+          `storey ${storey} BEAM ${n}: its first ${Math.round(zs[0].elev.onFaces)}mm is drawn without elevation lines -- taken from the beam's own faces`,
+        );
       }
       if (!s.xsecs.length)
         problems.push(
