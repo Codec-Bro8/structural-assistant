@@ -152,6 +152,13 @@ function ownPoints(fields, type, lines, start, end) {
 // So 10/20 is kept only where it agrees with 11/21: no further along the
 // baseline than the text could be long, and offset across it by what the
 // vertical justification puts there. Anything else is not a position.
+//
+// An empty text is the exception. AutoCAD draws nothing for it, so neither
+// point is ink, and its 11/21 can stand anywhere -- the raft export's empty
+// bar marks put it up to 6.5m from the bar, in the next detail row down,
+// where it dragged section boxes wide and the finished sheet 49m off. What
+// such a text is for is the bar it would mark, and Prota writes that bar's
+// start into 10/20, so that is where it is measured.
 const ACROSS = { 0: 0, 1: -0.3, 2: 0.5, 3: 1 }; // anchor above the baseline, in text heights
 
 function textPoints(lines, start, end) {
@@ -167,6 +174,7 @@ function textPoints(lines, start, end) {
   }
   const first = isFinite(v[10]) && isFinite(v[20]);
   const second = isFinite(v[11]) && isFinite(v[21]);
+  if (!text.trim() && first) return { xs: [v[10]], ys: [v[20]] };
   const horiz = v[72] || 0;
   const vert = v[73] || 0;
   if ((horiz === 0 && vert === 0) || !second)

@@ -304,6 +304,11 @@ behind.
 Anything else is measured at 11/21 alone. The nine samples in `examples/` come
 out byte for byte the same, because their 10/20 always agrees.
 
+Empty text is the exception. AutoCAD draws nothing for it, so neither point is
+ink, and its 11/21 can be anywhere: the raft's empty bar marks put it up to
+6.5m from the bar. Prota writes the bar's start into 10/20, so empty text is
+measured there.
+
 ### A span can be drawn on its faces alone
 
 A zone used to start where its first Front/Back Elevation Line starts. The
@@ -356,6 +361,23 @@ Both now set the floor, by the same rule as span titles:
   line.
 - **Otherwise it belongs to the nearest row above**, and only if it hangs no
   more than `DEFAULT_TITLE_DROP` below it.
+
+### Empty text rides along
+
+The raft gives every bar an empty bar-mark text, on `Rebar Barmark` and
+`Top Rebar Barmark`. The roof set has them too.
+
+They were on no detail layer, so 162 stayed behind on the raft and 680 on the
+roof set. The lowest of them decided where the finished sheet went: 49m under
+the raft's plan, 63m under the roof set's.
+
+Both layers are now in `DETAIL_LAYERS`, and an empty text is a rider:
+- it travels with whatever ink it stands among;
+- it never sizes a box, a row, a strip slot or the ground the sheet has to
+  clear.
+
+Counted as ink, their stray coordinates made the roof set's frames 20m taller.
+The roof set's sheet now lands 6.6m under its plan, the raft's 6.4m.
 
 ### Dimensions are left exactly as Prota drew them
 

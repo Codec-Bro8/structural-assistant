@@ -52,6 +52,13 @@ const DETAIL_LAYERS = new Set([
   "Axis Line(Dir 2)",
   "Top Rebar Line",
   "Rebar Kink",
+  // The raft export gives every bar an empty bar-mark text of its own, top and
+  // bottom; the roof set does too. Empty means invisible, but not absent: left
+  // behind, 162 of them stood where the raft's details had been, and the lowest
+  // one decided where the finished sheet went, 49m under the plan. How they are
+  // carried without being measured is in detail-sheet.js, under "empty".
+  "Rebar Barmark",
+  "Top Rebar Barmark",
 ]);
 
 const TITLE_LAYER = "Beam Label(D)";

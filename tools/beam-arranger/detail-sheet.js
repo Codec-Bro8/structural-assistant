@@ -148,6 +148,11 @@ function collect(lines) {
       cx: (b.x0 + b.x1) / 2,
       cy: (b.y0 + b.y1) / 2,
       text,
+      // A text with nothing in it draws nothing. It still belongs to a detail
+      // and travels with it, but it is no ink: it never sizes a box, a row or
+      // the ground the sheet has to clear. The raft export carries one empty
+      // bar mark per bar, at coordinates that are only roughly the bar's.
+      empty: text !== null && !text.trim(),
       dimBlock: type === "DIMENSION" ? (fields.get("2") || [null])[0] : null,
     };
     all.push(rec);
@@ -456,8 +461,11 @@ function splitDetail(zone, detail) {
       e.cy <= zone.band.y1,
   );
   // Span titles hang below the detail and drift between neighbours; they are
-  // handled separately and must not influence either box.
-  const geom = mine.filter((e) => e.layer !== TITLE_LAYER);
+  // handled separately and must not influence either box. Empty text is
+  // measured with neither: it rides along with whatever ink it stands among.
+  const body = mine.filter((e) => e.layer !== TITLE_LAYER);
+  const geom = body.filter((e) => !e.empty);
+  const riders = body.filter((e) => e.empty);
   const titles = mine.filter((e) => e.layer === TITLE_LAYER);
 
   const secTitles = zone.secs || [zone.sec];
@@ -528,8 +536,23 @@ function splitDetail(zone, detail) {
     xsecs.push({ ents, secTitle: secTitles[k], box: box(ents) });
   }
 
+  // Riders go where the ink around them went, and no further: past the last
+  // section's own break they are the next beam's, like any spilled ink.
+  const lonRiders = [];
+  for (const r of riders) {
+    if (r.cx <= cut) {
+      lonRiders.push(r);
+      continue;
+    }
+    const k = bounds.findIndex((b, i) => r.cx > b && r.cx < bounds[i + 1]);
+    const sec = xsecs[k];
+    if (!sec || !sec.box) continue;
+    if (k === xsecs.length - 1 && r.cx > sec.box.x1 + XSEC_BREAK) continue;
+    sec.ents.push(r);
+  }
+
   return {
-    lon: geom.filter((e) => e.cx <= cut),
+    lon: geom.filter((e) => e.cx <= cut).concat(lonRiders),
     xsecs: xsecs.filter((s) => s.box),
     spilled,
     titles,
@@ -820,7 +843,7 @@ function buildDetailSheet(options) {
       mine,
       detailTitles.filter((t) => t.storey === storey),
       mine.filter(
-        (e) => e.layer === "Section Line" || e.layer === "Section Label",
+        (e) => (e.layer === "Section Line" || e.layer === "Section Label") && !e.empty,
       ),
     );
     for (const row of rows)
@@ -904,7 +927,7 @@ function buildDetailSheet(options) {
         continue;
       }
       const s = splitDetail(zs[0], raw);
-      const lonBox = box(s.lon);
+      const lonBox = box(s.lon.filter((e) => !e.empty));
       const elevBox = box(s.lon.filter((e) => ELEVATION_LAYERS.has(e.layer)));
       if (!lonBox || !elevBox) {
         problems.push(`storey ${storey} BEAM ${n}: no longitudinal geometry`);
@@ -1110,7 +1133,7 @@ function buildDetailSheet(options) {
     const colX1 = wantLeft + FRAME_WIDTH;
     let lowest = planBox.y0;
     for (const e of all) {
-      if (willMove.has(e) || e.x1 < wantLeft || e.x0 > colX1) continue;
+      if (willMove.has(e) || e.empty || e.x1 < wantLeft || e.x0 > colX1) continue;
       if (e.y0 < lowest) lowest = e.y0;
     }
     const wantTop = lowest - SHEET_GAP;
