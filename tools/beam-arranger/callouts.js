@@ -68,6 +68,15 @@ const LINE_CLEAR = 20;
 // own nearest regular spot is 150-160 from it (31 of 209 square leaders on
 // the six floors), and no arrow the engineer slid lands closer than 169.
 const BAR_END_CLEAR = 150;
+// A square callout whose text the engineer flipped across its leg -- 8 of the
+// 155 -- has it 11-14mm from the leg, against Prota's 30, with the underline
+// mirrored at its own length. Every one also came 243-424mm nearer the beam.
+const FLIP_GAP = 12;
+// What a flip costs on top of the room it leaves to the face, which is what
+// weighs it against sliding and rising. Fitted on the six floors: anywhere
+// from 500 to 600 the search flips 4 of the engineer's 8 and none they did
+// not; at 450 it starts flipping ones they left, and above 600 it loses theirs.
+const FLIP_COST = 550;
 // A bar this close to a face is a main bar, not a side bar: main bars sit at
 // cover, 48mm in on every sample; side bars are 300mm and more from a face.
 const FACE_COVER = 120;
@@ -374,20 +383,37 @@ function reseatArrows(lines, ents) {
 // Every move a callout may make, cheapest first: the shortest distance, and
 // toward its own beam face before away from it, because a callout pulled in
 // against its beam still reads as that beam's.
+const acrossCost = (dy, toward) => Math.abs(dy) + (Math.sign(dy) === -toward ? 0.5 * Math.abs(dy) : 0);
 const offsetCache = new Map();
 function offsetsToward(toward) {
   if (offsetCache.has(toward)) return offsetCache.get(toward);
   const list = [];
   for (let dy = -MAX_ACROSS; dy <= MAX_ACROSS; dy += STEP_ACROSS)
     for (let dx = -MAX_ALONG; dx <= MAX_ALONG; dx += STEP_ALONG)
-      list.push({
-        dx,
-        dy,
-        cost: Math.abs(dx) + Math.abs(dy) + (Math.sign(dy) === -toward ? 0.5 * Math.abs(dy) : 0),
-      });
+      list.push({ dx, dy, cost: Math.abs(dx) + acrossCost(dy, toward) });
   list.sort((a, b) => a.cost - b.cost);
   offsetCache.set(toward, list);
   return list;
+}
+
+// A square callout's moves: the ones above, plus its text flipped across the
+// leg at every height, merged in by cost. A flip is charged FLIP_COST and the
+// room it leaves between the text and its face (`gap` is that room now), not
+// the width of text it carries across: all eight the engineer flipped came up
+// into the row by the face, 30-133mm off it, so the nearest clear height is
+// the one wanted.
+function squareMoves(c, toward, gap) {
+  const base = offsetsToward(toward);
+  const flips = [];
+  for (let dy = -MAX_ACROSS; dy <= MAX_ACROSS; dy += STEP_ACROSS)
+    flips.push({ dx: c.flipDx, dy, cost: FLIP_COST + Math.abs(gap - dy * toward), flip: true });
+  flips.sort((a, b) => a.cost - b.cost);
+  const out = [];
+  let i = 0;
+  let j = 0;
+  while (i < base.length || j < flips.length)
+    out.push(j >= flips.length || (i < base.length && base[i].cost <= flips[j].cost) ? base[i++] : flips[j++]);
+  return out;
 }
 
 // Moves the free callouts on one elevation off whatever they land on. Returns
@@ -470,6 +496,7 @@ function declash(lines, ents, blockRanges) {
       run.slice(1).every((v) => Math.abs(v.y - run[1].y) <= 1);
     c.elbowX = run[1].x;
     c.leftOfElbow = (c.box.x0 + c.box.x1) / 2 < c.elbowX;
+    c.flipDx = c.leftOfElbow ? c.elbowX + FLIP_GAP - c.box.x0 : c.elbowX - FLIP_GAP - c.box.x1;
     c.slide = null;
     if (c.square) {
       const tip = run[0];
@@ -495,25 +522,29 @@ function declash(lines, ents, blockRanges) {
   // The leader a callout would have after moving by dx, dy: from its second
   // vertex on it follows, the end on the bar staying put. A square leader
   // moves along whole, its end on the bar sliding along the bar with it, so
-  // the leg stays straight and the text keeps its side of it.
-  // With `underline` a square leader's leg stays put instead, and only the
-  // underline's far end goes along with the text.
-  const leaderAfter = (c, dx, dy, underline = false) => {
+  // the leg stays straight and the text keeps its side of it. Two other ways
+  // leave a square leader's leg standing: a "flip" mirrors the underline
+  // across it, and an "underline" move carries only the underline's far end
+  // along with the text.
+  const leaderAfter = (c, dx, dy, mode = "along") => {
     const vs = vertices(lines, c.leader);
     const run = c.barAtStart ? vs : vs.slice().reverse();
+    const legStays = c.square && mode !== "along";
     return run.map((v, k) => {
-      if (k === 0) return { x: v.x + (c.square && !underline ? dx : 0), y: v.y };
-      const along = !c.square || !underline || k === run.length - 1 ? dx : 0;
-      return { x: v.x + along, y: v.y + dy };
+      if (k === 0) return { x: v.x + (legStays || !c.square ? 0 : dx), y: v.y };
+      if (!legStays) return { x: v.x + dx, y: v.y + dy };
+      if (mode === "flip") return { x: k === 1 ? v.x : 2 * c.elbowX - v.x, y: v.y + dy };
+      return { x: v.x + (k === run.length - 1 ? dx : 0), y: v.y + dy };
     });
   };
   // Whether a square leader's leg may stand dx along: its arrow still on the
   // straight run of its bar, and, while the tier keeps lines apart, the leg
   // no nearer than that to another upright line over the height they share.
-  // With `underline` the leg stays and the text may not cross it.
-  const legFits = (c, box, dx, dy, near, gap, underline) => {
-    if (!c.square || dx === 0) return true;
-    if (underline) return c.leftOfElbow ? box.x1 <= c.elbowX : box.x0 >= c.elbowX;
+  // An underline move keeps the text on its own side of the standing leg; a
+  // flip puts it on the other, by construction.
+  const legFits = (c, box, dx, dy, near, gap, mode) => {
+    if (!c.square || mode === "flip" || dx === 0) return true;
+    if (mode === "underline") return c.leftOfElbow ? box.x1 <= c.elbowX : box.x0 >= c.elbowX;
     if (!c.slide || dx < c.slide.lo || dx > c.slide.hi) return false;
     if (gap === null) return true;
     const [foot, elbow] = leaderAfter(c, dx, dy);
@@ -550,9 +581,9 @@ function declash(lines, ents, blockRanges) {
   // still on this beam's own ground; then, as far as the tier asks, its text
   // kept tier.lines from every line not its own and the leader it drags along
   // kept tier.leader from any other text. A null skips that test.
-  const clear = (box, self, dx, dy, near, tier) => {
+  const clear = (box, self, dx, dy, near, tier, mode) => {
     if (box.x0 < lonX0 || box.x1 > lonX1) return false;
-    if (!legFits(self, box, dx, dy, near, tier.lines, tier.underline)) return false;
+    if (!legFits(self, box, dx, dy, near, tier.lines, mode)) return false;
     const f = facesOver(lines, faces, box.x0, box.x1);
     if (f) {
       if (self.side === "below" && box.y1 > f.soffit - FACE_CLEAR) return false;
@@ -564,7 +595,7 @@ function declash(lines, ents, blockRanges) {
       const room = grow(box, tier.lines);
       if (near.some(([a, b]) => cuts(a, b, room))) return false;
     }
-    return tier.leader === null || !leaderCrosses(leaderAfter(self, dx, dy, tier.underline), self, tier.leader);
+    return tier.leader === null || !leaderCrosses(leaderAfter(self, dx, dy, mode), self, tier.leader);
   };
   // The engineer's clearances first. Where the engineer made room by deleting
   // a short dimension -- 1st-BIG's 450/500 chain under BEAM 1 -- there is
@@ -587,17 +618,15 @@ function declash(lines, ents, blockRanges) {
   const stuck = [];
   const crossing = [];
   const slid = [];
+  const flipped = [];
+  // How far a callout's text stands off its own face.
+  const faceGap = (c) => {
+    const f = facesOver(lines, faces, c.box.x0, c.box.x1);
+    return c.side === "below" ? f.soffit - c.box.y1 : c.box.y0 - f.top;
+  };
   // Nearest the beam first: the row next to the face is settled before the
   // ones hanging off it.
-  const order = callouts
-    .filter((c) => c.free)
-    .sort((a, b) => {
-      const fa = facesOver(lines, faces, a.box.x0, a.box.x1);
-      const fb = facesOver(lines, faces, b.box.x0, b.box.x1);
-      const da = a.side === "below" ? fa.soffit - a.box.y1 : a.box.y0 - fa.top;
-      const db = b.side === "below" ? fb.soffit - b.box.y1 : b.box.y0 - fb.top;
-      return da - db;
-    });
+  const order = callouts.filter((c) => c.free).sort((a, b) => faceGap(a) - faceGap(b));
   for (const c of order) {
     const onText = textUnder(c.box, c);
     const across = leaderCrosses(leaderAfter(c, 0, 0), c, 0);
@@ -612,15 +641,20 @@ function declash(lines, ents, blockRanges) {
     let tier = null;
     for (tier of TIERS) {
       if ((tier.onTextOnly && !onText) || (tier.underline && !c.square)) break;
-      best = offsetsToward(toward).find((o) => clear(shift(c.box, o.dx, o.dy), c, o.dx, o.dy, near, tier));
-      if (best) break;
+      const moves = c.square && !tier.underline ? squareMoves(c, toward, faceGap(c)) : offsetsToward(toward);
+      const modeOf = (o) => (o.flip ? "flip" : tier.underline ? "underline" : "along");
+      best = moves.find((o) => clear(shift(c.box, o.dx, o.dy), c, o.dx, o.dy, near, tier, modeOf(o)));
+      if (best) {
+        best = { ...best, mode: modeOf(best) };
+        break;
+      }
     }
     if (!best) {
       stuck.push(`${c.text} on ${hit}`);
       continue;
     }
-    const { dx, dy } = best;
-    const path = leaderAfter(c, dx, dy, tier.underline);
+    const { dx, dy, mode } = best;
+    const path = leaderAfter(c, dx, dy, mode);
     if (tier.leader === null) {
       const through = leaderCrosses(path, c, 0);
       if (through) crossing.push(`${c.text} across ${through}`);
@@ -634,7 +668,7 @@ function declash(lines, ents, blockRanges) {
     reboxPolyline(lines, c.leader);
     runsOf.set(c.leader, segments(vertices(lines, c.leader)));
     // A square leader's arrow goes along the bar with its leg.
-    if (c.square && !tier.underline && dx !== 0) {
+    if (c.square && mode === "along" && dx !== 0) {
       for (const part of [c.head.outline, c.head.fill]) {
         if (!part) continue;
         translateRange(lines, part.start, part.end, part.type, dx, 0);
@@ -642,9 +676,10 @@ function declash(lines, ents, blockRanges) {
       }
       slid.push(`${c.text} ${Math.round(dx)}`);
     }
+    if (mode === "flip") flipped.push(c.text);
     moved.push(`${c.text} off ${hit}`);
   }
-  return { moved, stuck, crossing, slid };
+  return { moved, stuck, crossing, slid, flipped };
 }
 
 export { reseatArrows, declash, textInk, ROW_GAP, FACE_CLEAR };

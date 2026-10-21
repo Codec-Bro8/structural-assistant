@@ -494,6 +494,32 @@ closer than 169. While a tier keeps lines apart, the slid leg also keeps that
 far from any other upright line over the height they share. Staying put is
 always allowed.
 
+**Or flips its text across the leg.** The engineer's other move, 8 of the 155.
+All eight are alike:
+- Prota had the text 30mm from the leg with the underline 45mm past it, a
+  second-row callout on a 554–704mm leg;
+- the engineer left the leg standing, put the text 11–14mm from it on the other
+  side (`FLIP_GAP` 12), and mirrored the underline at its own length, 705 both
+  ways;
+- the text also came 243–424mm nearer the beam, into the row by the face,
+  30–133mm off it.
+
+So a square callout's search also offers its text flipped, at every height.
+A flip is priced at `FLIP_COST` plus the room it leaves between the text and
+its face, not the 672mm of text it carries across, so a flip goes as near the
+face as is clear, as the engineer's did.
+
+`FLIP_COST` (550) is fitted on the six floors:
+- from 500 to 600 the search flips 4 of the engineer's 8 and none they left;
+- at 450 it starts flipping callouts they left alone;
+- above 600 it loses theirs.
+
+Over that whole range text agreement rises 481 → 485 of 529. The four it
+reproduces (1st-sm 3Y16-20, 1st-BIG 3Y16-28, 2nd-BIG 2Y16-18 twice) land within
+1mm of the engineer's text along the beam and 24–97mm across it. The four it
+misses never clash here at all: the engineer flipped them to tighten the rows,
+which this pass does not try.
+
 **Callouts off lines.** On the engineer's six floors no leader but a callout's
 own, and no dimension or extension line, runs through its text: 1 callout in
 652 has one within 20mm (`LINE_CLEAR`), and 14 have one within 40. A callout
@@ -517,18 +543,18 @@ dimension chain.
 Every tier-3 or tier-4 move whose leader ends up crossing text is a `WARNING`,
 and so is every callout left with no clear spot.
 
-| drawing | callouts moved | of them slid along the bar | leader still crosses text | no clear spot | leaders through a callout, before → after | agreement with the engineer (within 0.75h) |
-|---|---|---|---|---|---|---|
-| `1st-sm` | 15 | 2 | 0 | 0 | 16 → 0 | 85 → 88 of 103 |
-| `2nd-sm` | 9 | 0 | 0 | 0 | 9 → 0 | 59 → 61 of 62 |
-| `3rd-sm` | 11 | 0 | 0 | 0 | 11 → 0 | 57/62 → 62/65 |
-| `1st-BIG.details` | 20 | 5 | 0 | 0 | 19 → 1 | 116/135 → 117/134 |
-| `2nd-BIG.details` | 17 | 4 | 0 | 0 | 17 → 0 | 87 → 89 of 98 |
-| `3rd-BIG.details` | 13 | 2 | 0 | 0 | 13 → 0 | 63 → 64 of 67 |
-| `grd-floor-halo` | 61 | 35 | 4 | 3 | 66 → 21 | no sheet |
-| `GRD` | 51 | 30 | 1 | 2 | 71 → 8 | no sheet |
-| `1ST 2ND-4TH ROOF` | 106 | 7 | 0 | 0 | 106 → 0 | no sheet |
-| `prota-raft-agungi` | 26 | 13 | 0 | 0 | 23 → 2 | no sheet |
+| drawing | callouts moved | slid along the bar | flipped across the leg | leader still crosses text | no clear spot | leaders through a callout, before → after | agreement with the engineer (within 0.75h) |
+|---|---|---|---|---|---|---|---|
+| `1st-sm` | 15 | 1 | 1 | 0 | 0 | 16 → 0 | 85 → 89 of 103 |
+| `2nd-sm` | 9 | 0 | 0 | 0 | 0 | 9 → 0 | 59 → 61 of 62 |
+| `3rd-sm` | 11 | 0 | 0 | 0 | 0 | 11 → 0 | 57/62 → 62/65 |
+| `1st-BIG.details` | 20 | 3 | 2 | 0 | 0 | 19 → 1 | 116/135 → 118/134 |
+| `2nd-BIG.details` | 17 | 2 | 2 | 0 | 0 | 17 → 0 | 87 → 91 of 98 |
+| `3rd-BIG.details` | 13 | 2 | 0 | 0 | 0 | 13 → 0 | 63 → 64 of 67 |
+| `grd-floor-halo` | 62 | 34 | 2 | 4 | 1 | 66 → 20 | no sheet |
+| `GRD` | 50 | 29 | 2 | 1 | 2 | 71 → 8 | no sheet |
+| `1ST 2ND-4TH ROOF` | 106 | 5 | 2 | 0 | 0 | 106 → 0 | no sheet |
+| `prota-raft-agungi` | 26 | 12 | 1 | 0 | 0 | 23 → 2 | no sheet |
 
 "Leaders through a callout" counts the whole output, strip and unplaced beams
 included. Agreement counts callouts within 0.75 of a text height of the
@@ -540,12 +566,19 @@ floor, 19 on `grd-floor-halo`, 10 on `GRD`, 5 on the raft) and 11 callouts with
 no clear spot. After it, 5 and 5. Every slid arrow is still on a bar: the
 off-bar arrow counts are unchanged on all ten drawings.
 
-What the slide costs:
-- **Legs on the scored floors.** The 13 slides there are on callouts whose leg
-  the engineer left standing. On 2nd-BIG's 2Y16-18 (twice) and 1st-BIG's
-  3Y16-28 the engineer flipped the text across the leg, and on 2Y16-5/2Y16-9
-  they deleted the 450/500 chain. Text agreement is unchanged, but those legs
-  now differ from theirs.
+What the slide and the flip cost:
+- **Legs on the scored floors.** Before the flip, 13 slides there were on
+  callouts whose leg the engineer left standing. The flip takes three of them
+  back (2nd-BIG's 2Y16-18 twice, 1st-BIG's 3Y16-28). The rest are mostly
+  2Y16-5/2Y16-9, where the engineer deleted the 450/500 chain instead.
+- **A cut mark through a flipped callout.** ROOF's 5Y20-13 flips up into the
+  row by the soffit, where its beam's cut mark stands. `cut-marks.js` never
+  searched that cut: its clear span comes out the wrong way round (lo past hi),
+  so the mark keeps Prota's x and no warning is raised. It also measures a
+  callout as its anchor point, not its width. Callouts crossed by a cut mark:
+  ROOF 0 → 1, all others unchanged (GRD 6, `grd-floor-halo` 6, raft 3, from
+  the same two gaps). GRD BEAM 4's cut also gained one overlap beside a flipped
+  3Y20-78.
 - **Cut marks on the deep ground floors.** `cut-marks.js` avoids each leader's
   whole bounding box, so a slid square leader blocks more of the span near the
   soffit. Spans that already had no clear cut position gained overlaps: `GRD`
@@ -558,11 +591,13 @@ What the slide costs:
   rule to measure there yet.
 
 Still open:
-- flipping a square callout's text across its leg, the engineer's other move
-  (8 of 155);
+- in `cut-marks.js`: the inverted span that leaves a cut unsearched and
+  unreported, callouts measured as points, and leaders measured by their whole
+  bounding box;
+- flipping or pulling in callouts that do not clash, to tighten the rows as the
+  engineer did with the four flips this misses;
 - link callouts, which the engineer slides along their run (218–514mm either
   way, never across, on 1st-BIG);
-- cut marks that read a leader's segments rather than its bounding box;
 - the strip's dimensions (R4/R5).
 
 ### A beam can be cut more than once
@@ -920,8 +955,8 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-20):
 | `1st-BIG.details` | 51 | 14 | 14 | 2 | 5 | 134 | 0 |
 | `2nd-BIG.details` | 41 | 13 | 13 | 2 | 5 | 107 | 0 |
 | `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 0 |
-| `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 22 |
-| `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 17 |
+| `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 21 |
+| `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 18 |
 | `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 5 |
 | `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 4 |
 
@@ -947,7 +982,7 @@ and `GRD` 6. Before untitled details were tied, `GRD` left 5 and
 The rest of the warnings do not unplace anything:
 - A callout that could only be moved off other text by letting its leader
   cross text, or that has no clear spot at all (see "Callouts are tidied where
-  they stand"): 5 on `grd-floor-halo`, 3 on `GRD`.
+  they stand"): 4 on `grd-floor-halo`, 3 on `GRD`.
 - A beam wider than the frame gets a row to itself and overhangs it (2 on each
   ground floor, 3 on the roof set).
 - A cut mark with no clear spot in its span goes to the least obstructed one.
