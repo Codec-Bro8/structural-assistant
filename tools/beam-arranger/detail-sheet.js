@@ -36,7 +36,14 @@ import {
   translateBlock,
 } from "./layout-details.js";
 import { cutEntities, reshapeCuts } from "./cut-marks.js";
-import { reseatArrows, declash } from "./callouts.js";
+import {
+  reseatArrows,
+  declash,
+  textInk,
+  leaderOf,
+  CALLOUT_LAYERS,
+  LEADER_LAYER,
+} from "./callouts.js";
 import {
   MARK_LAYER,
   MARK_COLOR,
@@ -114,7 +121,6 @@ const ELEVATION_LAYERS = new Set([
   "Back Elevation Line",
 ]);
 const ROW_SPLIT_GAP = 1200; // y gap separating one source detail row from the next
-const RUN_GAP = 300; // x gap in the elevation lines meaning a different beam
 const TITLE_CLEAR = 100; // clearance below a row title when partitioning rows
 const DEFAULT_TITLE_DROP = 1500; // assumed title drop for a row that has none
 const ZONE_LEFT_PAD = 700; // a detail's leftmost dimension reaches back past its elevation
@@ -383,15 +389,25 @@ function rowZones(row, sections, faces = []) {
     if (z.elev.x0 - x0 >= FACE_SPAN_MIN)
       z.elev = { ...z.elev, x0, onFaces: z.elev.x0 - x0 };
   }
-  // A zone reaches right until the next beam's elevation begins, measured from
+  // A zone reaches right until the next beam's ground begins, measured from
   // its last section rather than its first so a second one is inside it.
+  //
+  // The next beam's ground starts where its own zone does, ZONE_LEFT_PAD
+  // before its elevation, so that the callouts it hangs out to the left are
+  // its own. Stopping 150mm short of its elevation instead let the two zones
+  // overlap, and a callout in the overlap less than XSEC_BREAK past the
+  // section went to both and was moved twice. Seven on the AGUNGI full export
+  // were, and every one landed off the sheet: BEAM 23's own 2Y16-69, carried
+  // with section 22 as well, 52m right of the frame.
+  zones.forEach((z) => {
+    z.x0 = (z.elev ? z.elev.x0 : z.sec.cx) - ZONE_LEFT_PAD;
+  });
   zones.forEach((z, i) => {
     const next = zones[i + 1];
     const lastSec = z.secs[z.secs.length - 1];
-    z.x0 = (z.elev ? z.elev.x0 : z.sec.cx) - ZONE_LEFT_PAD;
     z.x1 =
       next && next.elev
-        ? next.elev.x0 - RUN_GAP / 2
+        ? next.x0
         : lastSec.cx + TRAIL_LOOKAHEAD;
   });
   return zones.filter((z) => z.elev);
@@ -455,12 +471,16 @@ function zoneOwner(zone, byMark) {
 // "n - n" title, which puts the boundary in clear space rather than at a
 // guessed offset.
 function splitDetail(zone, detail) {
+  // The right edge is open: it is where the next zone's ground begins. A
+  // callout whose leader points across that edge was settled already.
   const mine = detail.filter(
     (e) =>
-      e.cx >= zone.x0 &&
-      e.cx <= zone.x1 &&
-      e.cy >= zone.band.y0 &&
-      e.cy <= zone.band.y1,
+      !(zone.drop && zone.drop.has(e)) &&
+      ((zone.take && zone.take.has(e)) ||
+        (e.cx >= zone.x0 &&
+          e.cx < zone.x1 &&
+          e.cy >= zone.band.y0 &&
+          e.cy <= zone.band.y1)),
   );
   // Span titles hang below the detail and drift between neighbours; they are
   // handled separately and must not influence either box. Empty text is
@@ -856,6 +876,35 @@ function buildDetailSheet(options) {
       ))
         zones.push({ ...z, storey });
   }
+  // A callout in the ground between two details goes with the one its leader
+  // points into. Ground alone cannot say: the next detail's own callouts hang
+  // out to the left of it, and a section's hang out to the right of it, into
+  // the same ground. Given to the next detail by where it stands, section 19's
+  // 5Y10-2-250 on the AGUNGI full export would leave its leader in the strip
+  // and stand outside the frame. A callout with no leader stays where its
+  // ground puts it.
+  const leaderEnts = raw.filter((e) => e.layer === LEADER_LAYER && e.type === "LWPOLYLINE");
+  zones.forEach((z, i) => {
+    const next = zones[i + 1];
+    if (!next || next.band !== z.band) return;
+    const from = z.secs[z.secs.length - 1].cx;
+    const to = next.elev.x0;
+    const inRow = (e) => e.cy >= z.band.y0 && e.cy <= z.band.y1;
+    const near = leaderEnts.filter((l) => inRow(l) && l.x1 >= from && l.x0 <= to);
+    for (const t of raw) {
+      if (t.type !== "TEXT" || t.empty || !CALLOUT_LAYERS.has(t.layer)) continue;
+      if (t.cx <= from || t.cx >= to || !inRow(t)) continue;
+      const ink = textInk(lines, t);
+      const lead = ink && leaderOf(lines, ink, near);
+      if (!lead) continue;
+      const [mine, other] = lead.bar.x < next.x0 ? [z, next] : [next, z];
+      for (const e of [t, lead.l]) {
+        (mine.take || (mine.take = new Set())).add(e);
+        (other.drop || (other.drop = new Set())).add(e);
+      }
+    }
+  });
+
   const spanMarks = new Set(labels.map((l) => l.mark));
   for (const z of zones)
     z.marks = onBaseline(z.titles.filter((t) => spanMarks.has(t.mark))).map(
@@ -1352,6 +1401,21 @@ function buildDetailSheet(options) {
       }
     }
   }
+  // The other way a detail goes wrong without anything being left behind: a
+  // part carried by two of them is moved twice, and lands where neither put
+  // it. Nothing should be, since the zones in a row no longer overlap; this
+  // says so if one ever is.
+  const carrier = new Map();
+  for (const j of jobs)
+    for (const e of j.lon.concat(j.xsecs.flatMap((x) => x.ents), j.titles)) {
+      const other = carrier.get(e);
+      if (!other) carrier.set(e, j);
+      else if (other !== j)
+        problems.push(
+          `storey ${j.storey} BEAM ${other.num} and BEAM ${j.num} both carried ${e.type} on "${e.layer}"` +
+            `${e.text && e.text.trim() ? ` (${e.text.trim()})` : ""} at x=${e.cx.toFixed(0)} -- moved twice`,
+        );
+    }
 
   // --- frame ---
   let nextHandle = findMaxHandle(lines) + 1;

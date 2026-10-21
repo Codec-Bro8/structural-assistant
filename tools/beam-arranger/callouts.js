@@ -418,6 +418,28 @@ function squareMoves(c, toward, gap) {
 
 // Moves the free callouts on one elevation off whatever they land on. Returns
 // what moved and what could not be cleared.
+// The leader a callout hangs off, given the callout's ink: the one with a
+// level run along the foot of the text covering at least 0.4 of it. Its bar
+// end is the end further from the callout, and stays on the bar it points at.
+function leaderOf(lines, box, leaders) {
+  let best = null;
+  let bestCover = 0;
+  for (const l of leaders) {
+    const vs = vertices(lines, l);
+    for (let k = 0; k + 1 < vs.length; k++) {
+      const p = vs[k], q = vs[k + 1];
+      if (Math.abs(p.y - q.y) > 1) continue;
+      if (p.y < box.y0 - 0.6 * box.h || p.y > box.y0 + 0.15 * box.h) continue;
+      const cover = Math.min(box.x1, Math.max(p.x, q.x)) - Math.max(box.x0, Math.min(p.x, q.x));
+      if (cover > bestCover) { bestCover = cover; best = { l, vs }; }
+    }
+  }
+  if (!best || bestCover < 0.4 * (box.x1 - box.x0)) return null;
+  const d = (v) => Math.hypot(v.x - (box.x0 + box.x1) / 2, v.y - box.y0);
+  const barAtStart = d(best.vs[0]) > d(best.vs[best.vs.length - 1]);
+  return { ...best, barAtStart, bar: barAtStart ? best.vs[0] : best.vs[best.vs.length - 1] };
+}
+
 function declash(lines, ents, blockRanges) {
   const faces = ents.filter((e) => e.layer === FACE_LAYER && e.y1 - e.y0 < 1 && e.x1 - e.x0 > 1);
   const leaders = ents.filter(
@@ -457,24 +479,11 @@ function declash(lines, ents, blockRanges) {
   for (const c of callouts) {
     c.free = false;
     if (c.e.layer === "Link Label") continue;
-    let best = null;
-    let bestCover = 0;
-    for (const l of leaders) {
-      const vs = vertices(lines, l);
-      for (let k = 0; k + 1 < vs.length; k++) {
-        const p = vs[k], q = vs[k + 1];
-        if (Math.abs(p.y - q.y) > 1) continue;
-        if (p.y < c.box.y0 - 0.6 * c.box.h || p.y > c.box.y0 + 0.15 * c.box.h) continue;
-        const cover = Math.min(c.box.x1, Math.max(p.x, q.x)) - Math.max(c.box.x0, Math.min(p.x, q.x));
-        if (cover > bestCover) { bestCover = cover; best = { l, vs }; }
-      }
-    }
-    if (!best || bestCover < 0.4 * (c.box.x1 - c.box.x0) || best.vs.length < 3) continue;
+    const best = leaderOf(lines, c.box, leaders);
+    if (!best || best.vs.length < 3) continue;
     const arrowsOn = heads.filter((h) => best.vs.some((v) => Math.abs(v.x - h.apex.x) <= ON && Math.abs(v.y - h.apex.y) <= ON));
     if (arrowsOn.length > 1) continue;
-    // The bar end is the end further from the callout; it stays where it is.
-    const d = (v) => Math.hypot(v.x - (c.box.x0 + c.box.x1) / 2, v.y - c.box.y0);
-    const barAtStart = d(best.vs[0]) > d(best.vs[best.vs.length - 1]);
+    const barAtStart = best.barAtStart;
     const f = facesOver(lines, faces, c.box.x0, c.box.x1);
     if (!f) continue;
     if (c.box.y0 >= f.top) c.side = "above";
@@ -682,4 +691,13 @@ function declash(lines, ents, blockRanges) {
   return { moved, stuck, crossing, slid, flipped };
 }
 
-export { reseatArrows, declash, textInk, ROW_GAP, FACE_CLEAR };
+export {
+  reseatArrows,
+  declash,
+  textInk,
+  leaderOf,
+  CALLOUT_LAYERS,
+  LEADER_LAYER,
+  ROW_GAP,
+  FACE_CLEAR,
+};

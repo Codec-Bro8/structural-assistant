@@ -417,6 +417,42 @@ Both layers are now in `DETAIL_LAYERS`, and an empty text is a rider:
 Counted as ink, their stray coordinates made the roof set's frames 20m taller.
 The roof set's sheet now lands 6.6m under its plan, the raft's 6.4m.
 
+### A callout between two details goes where its leader points
+
+A zone used to reach right to 150mm short of the next detail's elevation, and
+the next zone started 700mm short of it, so the two overlapped by 550mm. A
+callout in the overlap was meant to go to the next detail: the section's last
+run is cut at the first clear 800mm (`XSEC_BREAK`), and what that drops "is
+picked up" by the next zone. Where the gap was less than 800mm nothing was
+dropped, and the callout went to both. It was then moved twice and landed
+where neither put it. On the AGUNGI full export seven callouts were, and every
+one landed off the sheet: BEAM 23's own 2Y16-69, carried with section 22 as
+well, ended up 52m right of the frame. The roof set moved six empty bar marks
+twice. Nothing reported any of it.
+
+Now the zones in a row do not overlap: each stops where the next one's ground
+begins, so by default a callout there is the next detail's. But that ground
+holds both the next detail's own callouts, hung out to its left, and a
+section's, hung out to its right. Given to the next detail by where it stands,
+section 19's 5Y10-2-250 would leave its leader in the strip and stand outside
+the frame. So a callout with a leader goes with the detail its leader's bar
+end is in, and takes its leader with it:
+- on the full export, five link callouts go back to their sections (among them
+  section 19's 5Y10-2-250 and section 25's 10Y10-2-100) and two bar callouts to
+  the next detail (2Y16-69 and storey 3's 2Y16-46);
+- the leader is the one `declash` already uses: a level run along the foot of
+  the text covering at least 0.4 of it (`leaderOf` in `callouts.js`);
+- a callout with no leader, and anything else, goes where its ground puts it.
+  The roof set's six empty bar marks now go to the next detail only.
+
+With the stray callouts gone, the full export's sections came out their own
+size, all but section 23, which still holds 1B59, a 0.9m stub drawn with no
+section of its own. Its strip pitch fell from 2516 to 2063mm, 15 sections to
+a line instead of 12, and the sheet is 8m shorter.
+
+Every run now also checks that **no part is carried by two details**, and says
+so in a `WARNING` if one is. None is, on any of the eleven drawings.
+
 ### A detail with no title is tied by its grid and its bars
 
 The raft draws four beams in full, section and all, and titles none of them:
@@ -929,6 +965,11 @@ and the orphan is now sitting on the old sheet. That is the number to check
 first. Beams the tool could not place are listed as `WARNING` lines and are
 left exactly where they were, never half-moved.
 
+The other way a detail goes wrong is a part carried by two details, which is
+moved twice. Every run checks for it, and a `WARNING ... moved twice` names
+the part. There should never be one (see "A callout between two details goes
+where its leader points").
+
 ### What it assumes about the drawing
 
 These hold for the Prota exports seen so far. A drawing that breaks one of
@@ -981,7 +1022,7 @@ the engineer's own sheet or off the source geometry:
 
 ## Current results
 
-Every drawing in `examples/`, all storeys, one run each (2026-10-20):
+Every drawing in `examples/`, all storeys, one run each (2026-10-21):
 
 | drawing | span labels | beams | placed | frames | rows | dimension blocks moved | warnings |
 |---|---|---|---|---|---|---|---|
@@ -995,11 +1036,20 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-20):
 | `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 19 |
 | `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 6 |
 | `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 8 |
+| `prota-beams-full` (AGUNGI, all four storeys, outside `examples/`) | 214 | 104 | 102 | 8 | 26 | 631 | 19 |
 
-On every one the leftover audit is **0**. `check-references.js` passes on all
-but the raft, which fails only on layers and styles its own source names
-without defining (`Column Size Label`, `Axis Line(Dir 1)` and others). None of
-them is one the arranger writes.
+On every one the leftover audit is **0**, and no part is moved twice.
+`check-references.js` passes on all but the two AGUNGI exports, which fail
+only on layers and styles their own sources name without defining
+(`Column Size Label`, `Axis Line(Dir 1)` and others). None of them is one the
+arranger writes.
+
+The AGUNGI full export is `ProtaData2021\AGUNGI\ExportedDrawings\prota-beams-full.dxf`:
+the foundation beams and storeys 1-3 in one file. Every moved part in it lies
+within the frame's width. Two of its beams, 1B59 and 3B48, are short stubs
+Prota draws with no cross-section; neither has a zone of its own yet, and
+1B59 rides in section 23. Its other 16 warnings are cut marks with no clear
+spot in their span.
 
 The old run, on the raft, placed 18 of 22. It moved BEAM 7 without its first
 span and left 162 bar marks behind.
@@ -1010,6 +1060,8 @@ The only reason left is **no detail zone could be tied to it**:
   "A drawing can arrive part-finished").
 - 3 on `GRD`. That drawing still has two cross-sections whose zones hold no
   span title, and whose grid names and bar marks fit none of those beams.
+- 2 on the AGUNGI full export: 1B59 and 3B48, which have no cross-section to
+  open a zone at.
 
 Before the details settled beam identity, the roof set left 10 beams unplaced
 and `GRD` 6. Before untitled details were tied, `GRD` left 5 and
@@ -1025,7 +1077,7 @@ The rest of the warnings do not unplace anything:
   (1 on 1st-sm, 10 on `grd-floor-halo`, 11 on `GRD`, 2 on the roof set, 8 on
   the raft).
 - One oversized section on each of `grd-floor-halo` and the roof set takes two
-  strip slots.
+  strip slots, and so does section 23 on the AGUNGI full export.
 
 `GRD`, the roof set and the raft have no layout caption, so their frames read
 plain `BEAM DETAILS`.
