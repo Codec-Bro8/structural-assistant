@@ -187,14 +187,43 @@ nearest position in its own clear span where neither mark crosses a label, link
 line or leader. It never crosses into a different span: a cut says where the
 section was taken, so it may be nudged for legibility but not relocated.
 
+**A callout counts as wide as its ink, and so does the mark's own number.** A
+TEXT record's box is only the point AutoCAD anchors it at. Measured that way, a
+callout was a dot the mark could stand in the middle of. The mark's number is
+right-justified, so its box was just its right-hand end:
+- raft BEAM 7's mark took itself to stop 31mm short of 2Y16-32, and put its
+  "7" 24mm into it;
+- the sections are now renumbered before the marks are placed, so the width
+  is the number the sheet will read: "21" is twice the "1" Prota wrote;
+- where no position in the span is clear, one that crosses no callout's text
+  beats one with fewer overlaps in all, since a leader's box is mostly empty
+  paper.
+
+Keeping the whole number 250mm off the support face moves most cuts with a
+two-digit number about 70mm along. On the scored floors that is toward the
+engineer's cut, by 70mm each on 1st-BIG's BEAMs 10, 13 and 14 and 1st-sm's
+BEAM 10.
+
 **A span with no support line on one side ends at the elevation's box.** Where
 that box does not reach the cut, the beam's own faces through it end the span
 instead. Roof storey 1 BEAM 5 is a cantilever drawn on its faces alone: its
 elevation lines are only the 225mm column it springs from. A span ended by them
 stopped behind its own cut, so the cut was never searched and nothing was
-reported. It is the only such cut in the ten drawings. It is searched now, and
-has no clear position, which is reported. A cut that still has no position to
-check is now a `WARNING`.
+reported. It is the only such cut in the ten drawings. A cut that still has no
+position to check is now a `WARNING`.
+
+| drawing | cut numbers on callout text | cut stems or arrowheads through callout text | cuts with no clear position |
+|---|---|---|---|
+| `GRD` | 7 → 5 | 9 → 11 | 10 → 11 |
+| `grd-floor-halo` | 9 → 6 | 12 → 10 | 9 → 10 |
+| `prota-raft-agungi` | 12 → 3 | 6 → 6 | 4 → 8 |
+| `1ST 2ND-4TH ROOF` | 3 → 2 | 2 → 2 | 1 → 2 |
+
+The six floor files have none of the first two either way, and 1st-sm keeps its
+one span with no clear position. Most of the new "no clear position" warnings
+are not new overlaps. They are spans where a number was already sitting on a
+callout unseen, now counted. The two strokes GRD gains are one mark, BEAM 33a's,
+in a span that had no clear position before either.
 
 ### Nothing is ever dropped for being ambiguous
 
@@ -581,13 +610,11 @@ What the slide and the flip cost:
   back (2nd-BIG's 2Y16-18 twice, 1st-BIG's 3Y16-28). The rest are mostly
   2Y16-5/2Y16-9, where the engineer deleted the 450/500 chain instead.
 - **A cut mark through a flipped callout.** ROOF's 5Y20-13 flips up into the
-  row by the soffit, where its beam's cut mark stands. That cut is searched now
-  and reported as having no clear position (see "The section cut mark is
-  anchored to the beam"), but `cut-marks.js` still measures a callout as its
-  anchor point, not its width, so the mark still crosses 5Y20-13. Callouts
-  crossed by a cut mark: ROOF 0 → 1, all others unchanged (GRD 6,
-  `grd-floor-halo` 6, raft 3). GRD BEAM 4's cut also gained one overlap beside
-  a flipped 3Y20-78.
+  row by the soffit, where its beam's cut mark stands. That beam is a 2m
+  cantilever, and every position its cut can take crosses either 11Y20-12 or
+  5Y20-13, so the mark crosses one and is reported (see "The section cut mark
+  is anchored to the beam"). GRD BEAM 4's cut also gained one overlap beside a
+  flipped 3Y20-78.
 - **Cut marks on the deep ground floors.** `cut-marks.js` avoids each leader's
   whole bounding box, so a slid square leader blocks more of the span near the
   soffit. Spans that already had no clear cut position gained overlaps: `GRD`
@@ -600,8 +627,9 @@ What the slide and the flip cost:
   rule to measure there yet.
 
 Still open:
-- in `cut-marks.js`: callouts measured as points, and leaders measured by their
-  whole bounding box;
+- keeping a moved callout out of its beam's cut mark: callouts move before the
+  marks are placed, so nothing stops one taking a short span's last clear spot;
+- in `cut-marks.js`, leaders measured by their whole bounding box;
 - flipping or pulling in callouts that do not clash, to tighten the rows as the
   engineer did with the four flips this misses;
 - link callouts, which the engineer slides along their run (218–514mm either
@@ -963,10 +991,10 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-20):
 | `1st-BIG.details` | 51 | 14 | 14 | 2 | 5 | 134 | 0 |
 | `2nd-BIG.details` | 41 | 13 | 13 | 2 | 5 | 107 | 0 |
 | `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 0 |
-| `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 21 |
-| `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 18 |
+| `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 22 |
+| `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 19 |
 | `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 6 |
-| `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 4 |
+| `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 8 |
 
 On every one the leftover audit is **0**. `check-references.js` passes on all
 but the raft, which fails only on layers and styles its own source names
@@ -993,7 +1021,9 @@ The rest of the warnings do not unplace anything:
   they stand"): 4 on `grd-floor-halo`, 3 on `GRD`.
 - A beam wider than the frame gets a row to itself and overhangs it (2 on each
   ground floor, 3 on the roof set).
-- A cut mark with no clear spot in its span goes to the least obstructed one.
+- A cut mark with no clear spot in its span goes to the least obstructed one
+  (1 on 1st-sm, 10 on `grd-floor-halo`, 11 on `GRD`, 2 on the roof set, 8 on
+  the raft).
 - One oversized section on each of `grd-floor-halo` and the roof set takes two
   strip slots.
 

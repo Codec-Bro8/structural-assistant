@@ -21,6 +21,7 @@
 // different span.
 
 import { translateRange } from "./dxf-geom.js";
+import { textInk } from "./callouts.js";
 
 const STEM_HEIGHT = 250;
 const ARROW_HEIGHT = 177;
@@ -58,7 +59,16 @@ const isArrow = (e) =>
 // marks that share an x into a cut. A beam normally has exactly one cut, but
 // the pairing is by position rather than by count so a detail that carries two
 // is handled instead of silently half-moved.
-function findCuts(ents) {
+//
+// Given `lines`, a mark reaches as far left as its number's ink. The number is
+// right-justified, so its record's box is only its right-hand end: measured by
+// that, raft BEAM 7's mark took itself to stop 31mm short of 2Y16-32 and put
+// its "7" 24mm into it.
+function findCuts(ents, lines) {
+  const leftEnd = (p) => {
+    const ink = lines && p.type === "TEXT" && textInk(lines, p);
+    return ink ? Math.min(ink.x0, p.x0) : p.x0;
+  };
   const stems = ents.filter(isStem);
   const arrows = ents.filter(isArrow);
   const labels = ents.filter(
@@ -83,7 +93,7 @@ function findCuts(ents) {
       x: stem.x0,
       y0: stem.y0,
       y1: stem.y1,
-      reach: stem.x0 - Math.min(...parts.map((p) => p.x0)),
+      reach: stem.x0 - Math.min(...parts.map(leftEnd)),
     };
   });
 
@@ -164,10 +174,24 @@ const overlaps = (a, b) =>
 // crosses an obstacle. If the span has no clear position at all -- a densely
 // annotated short span -- the least-obstructed one is used and reported, which
 // is a better answer than leaving the mark buried.
-function chooseX(cut, ents, elevBox) {
+//
+// A callout is an obstacle as wide as its ink. Its record's box is only the
+// point AutoCAD anchors it at, so a mark could stand in the middle of a word:
+// the roof set's storey 1 BEAM 5 cut ran through 5Y20-13 that way. The ink is
+// read from `lines`, where the detail has already been moved by dx, dy, and is
+// taken back to where the records still stand.
+//
+// Where no position is clear, one that crosses no callout's text beats one
+// with fewer overlaps in all: a leader's box is mostly empty paper, a word is
+// not.
+function chooseX(cut, ents, elevBox, lines, dx, dy) {
+  const inkOf = (e) => {
+    const ink = e.type === "TEXT" && textInk(lines, e);
+    return ink ? { x0: ink.x0 - dx, x1: ink.x1 - dx, y0: ink.y0 - dy, y1: ink.y1 - dy, text: true } : null;
+  };
   const obstacles = ents
-    .filter((e) => OBSTACLE_LAYERS.has(e.layer))
-    .map((e) => ({ x0: e.x0, x1: e.x1, y0: e.y0, y1: e.y1 }));
+    .filter((e) => OBSTACLE_LAYERS.has(e.layer) && !(e.type === "TEXT" && e.empty))
+    .map((e) => inkOf(e) || { x0: e.x0, x1: e.x1, y0: e.y0, y1: e.y1 });
   const span = spanAt(ents, cut.x, elevBox);
   const lo = Math.min(span.lo + SPAN_MARGIN + cut.reach, span.hi - SPAN_MARGIN);
   const hi = Math.max(span.hi - SPAN_MARGIN, lo);
@@ -178,13 +202,19 @@ function chooseX(cut, ents, elevBox) {
     if (!faces) continue;
     const boxes = footprint(x, cut.reach, faces);
     let hits = 0;
+    let onText = 0;
     for (const o of obstacles)
-      for (const b of boxes) if (overlaps(b, o)) hits++;
-    const cand = { x, faces, hits, dist: Math.abs(x - cut.x) };
+      for (const b of boxes)
+        if (overlaps(b, o)) {
+          hits++;
+          if (o.text) onText++;
+        }
+    const cand = { x, faces, hits, onText, dist: Math.abs(x - cut.x) };
     if (
       !best ||
-      cand.hits < best.hits ||
-      (cand.hits === best.hits && cand.dist < best.dist)
+      cand.onText < best.onText ||
+      (cand.onText === best.onText && cand.hits < best.hits) ||
+      (cand.onText === best.onText && cand.hits === best.hits && cand.dist < best.dist)
     )
       best = cand;
   }
@@ -200,8 +230,8 @@ function chooseX(cut, ents, elevBox) {
 // faces are not symmetric about the mark still comes out right.
 function reshapeCuts(lines, ents, elevBox, dx, dy, ctx) {
   const results = [];
-  for (const cut of findCuts(ents)) {
-    const target = chooseX(cut, ents, elevBox);
+  for (const cut of findCuts(ents, lines)) {
+    const target = chooseX(cut, ents, elevBox, lines, dx, dy);
     if (!target) {
       results.push({ moved: false, reason: "no beam faces under the cut" });
       continue;

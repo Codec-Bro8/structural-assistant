@@ -1247,6 +1247,10 @@ function buildDetailSheet(options) {
           j.lon.filter((e) => !held.has(e) && !DROP_LAYERS.has(e.layer)),
           lonDx, lonDy, ctx,
         );
+        // Renumbered first, so the cut mark is placed knowing how wide its
+        // number will read: "21" is twice the "1" Prota wrote.
+        const xsecEnts = j.xsecs.flatMap((x) => x.ents);
+        const sec = renumberSections(lines, j.lon.concat(xsecEnts), j.num);
         const cuts = reshapeCuts(lines, j.lon, j.elevBox, lonDx, lonDy, ctx);
         for (const c of cuts) {
           if (!c.moved)
@@ -1282,8 +1286,6 @@ function buildDetailSheet(options) {
           });
         }
 
-        const xsecEnts = j.xsecs.flatMap((x) => x.ents);
-        const sec = renumberSections(lines, j.lon.concat(xsecEnts), j.num);
         const xsecDims = xsecEnts.filter(
           (e) => e.type === "DIMENSION" || DIM_LAYERS.has(e.layer),
         );
