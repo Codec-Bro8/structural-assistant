@@ -12,11 +12,26 @@ import Placeholder from "./components/Placeholder.jsx";
 const versionAt = (path) => (/^\/v2\/?$/.test(path) ? "v2" : "v1");
 const PATHS = { v1: "/", v2: "/v2" };
 
+// The office template restyles the sheet in the office's colours, linetypes
+// and fonts (tools/beam-arranger/template.js). Only v2 carries it: v1 is the
+// frozen pipeline. The choice is remembered in this browser, and is on until
+// someone turns it off.
+const TEMPLATE_KEY = "beam-arranger.useTemplate";
+function templatePref() {
+  try {
+    return localStorage.getItem(TEMPLATE_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
 export default function App() {
   const [version, setVersion] = useState(() => versionAt(location.pathname));
   const [examples, setExamples] = useState([]);
   const [choice, setChoice] = useState(null); // { file } or { example }
   const [scope, setScope] = useState({ storey: "", first: "", last: "" });
+  const [templateOn, setTemplateOn] = useState(templatePref);
+  const useTemplate = version === "v2" && templateOn;
 
   const [status, setStatus] = useState("idle"); // idle | running | done | error
   const [job, setJob] = useState(null);
@@ -40,6 +55,14 @@ export default function App() {
   useEffect(() => {
     api.listExamples().then(setExamples).catch(() => setExamples([]));
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TEMPLATE_KEY, templateOn ? "1" : "0");
+    } catch {
+      /* a browser that keeps nothing still runs; it just forgets */
+    }
+  }, [templateOn]);
 
   // ?example=NAME opens on one of the sample drawings, &run=1 starts it.
   useEffect(() => {
@@ -69,7 +92,7 @@ export default function App() {
       setSide("out");
 
       try {
-        const result = await api.run({ ...target, scope, version }, ctl.signal);
+        const result = await api.run({ ...target, scope, version, useTemplate }, ctl.signal);
         if (ctl.signal.aborted) return;
         if (!result.ok) {
           setJob(result);
@@ -85,7 +108,7 @@ export default function App() {
         setStatus("error");
       }
     },
-    [choice, scope, status, version],
+    [choice, scope, status, version, useTemplate],
   );
 
   const switchTo = (next) => {
@@ -95,10 +118,12 @@ export default function App() {
 
   // Switching keeps the drawing. A run on the page that the other version
   // made -- by the button, by Back, or finishing after the switch -- is run
-  // again under this one, so the two can be compared on the same file.
+  // again under this one, so the two can be compared on the same file. Turning
+  // the template on or off does the same.
   useEffect(() => {
-    if (job && job.version !== version && status !== "running" && choice) start();
-  }, [job, version, status, choice, start]);
+    const stale = job && (job.version !== version || job.template !== useTemplate);
+    if (stale && status !== "running" && choice) start();
+  }, [job, version, useTemplate, status, choice, start]);
 
   // Dropping a drawing anywhere on the window picks it, so the target is the
   // whole app rather than a small rectangle that has to be aimed at.
@@ -188,6 +213,7 @@ export default function App() {
           onRun={() => start()}
           job={job}
           onOpenReport={() => setShowReport(true)}
+          template={version === "v2" ? { on: templateOn, set: setTemplateOn } : null}
         />
 
         <main className="stage">

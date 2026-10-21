@@ -1066,3 +1066,26 @@ canvas.dragging {
   border-color: var(--line);
   cursor: not-allowed;
 }
+
+/* --- the template switch --- */
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: inherit;
+}
+
+.check:has(input:disabled) {
+  color: var(--faint);
+  cursor: not-allowed;
+}

@@ -1005,6 +1005,66 @@ these four were what stopped it. What it did not mind: a BLOCK_RECORD table
 that declares 6 records and holds 713, and three INSERTs followed by a SEQEND
 with no attributes.
 
+### The office template restyles the sheet
+
+A Prota 2021 export defines few of the layers it draws on, so once completed
+most of an arranged sheet is white. The office's working drawing, `BEAM
+DETAILS.dxf`, defines every one of them under Prota's own name: Leader Line
+blue (5), Beam Line(D) yellow (2), Front Elevation Line orange (40), Back
+Elevation Line yellow and `HIDDEN2`, Rebar, Link and Top Rebar Line cyan (4),
+the three kinds of callout magenta (6), Axis Line red and `CENTER2`, Section
+Line and Label red (1), all at lineweight 0.09. Every entity on those layers, in
+that drawing and in Prota's, takes its colour, linetype and lineweight from the
+layer. So restyling the layers is all it takes; no entity is touched.
+
+`--template` on the command line, and **Use our template** on the v2 page,
+apply it last (`applyTemplate` in `template.js`):
+- a layer the template knows takes its colour, true colour, linetype,
+  lineweight and plot flag. Whether it is on stays as it was.
+- a text style takes its font, width and slant: Arial Narrow, and Arial Narrow
+  Bold on the grid labels, where Prota writes plain Arial. It does not take
+  the fixed height the office styles carry. A fixed height on a style
+  overrides a dimension's own text size, which would undo the strip's 0.6
+  lettering.
+- a linetype a restyled layer needs takes the template's pattern too, because
+  the name alone does not fix the length. Prota's `HIDDEN2` is `acad.lin`'s
+  (0.125 and 0.0625), the office's is `acadiso.lin`'s (3.175 and 1.5875).
+- `$LTSCALE` becomes the template's 30, where Prota writes 1000, so dashes read
+  as they do once pasted into it.
+- the sheet's dimensions take the colours of the office's detail-dimension
+  style: red lines and arrows, yellow figures. A dimension's colours are not
+  its layer's. Its lines, arrows and figure are drawn inside its block in the
+  colours its style sets, and Prota's `BEAM` style sets blue throughout. The
+  office's own copy of `BEAM` is blue too, so matching by name would change
+  nothing. So the template records the colours of the style most of its
+  dimensions on `BZ_DIM OUTER` use: `BEZAL_100`, 176 = 1, 177 = 1, 178 = 2.
+  Each of the sheet's dimensions gets them in both places a dimension keeps
+  them, as the strip's text size had to: its own ACAD/DSTYLE overrides,
+  which AutoCAD draws from when it regenerates it, and the parts inside its
+  block, which is what shows until then. The arrowheads are inserts of
+  `PCDIM_TICK`, whose lines are by block, so they turn red with the insert.
+  The plan's dimensions keep Prota's colours, as the office's own plan
+  dimensions do. On the full export that is 631 dimensions; the figures stay
+  Prota's size.
+
+On the full AGUNGI export that is 49 layers and 18 text styles. Four layers
+are left as completed because the template does not have them, and all four
+hold only empty text.
+
+**What the page carries** is `tools/beam-arranger/templates/office.json`,
+12KB, not the 55MB drawing. The repository and the site are public, so it
+keeps only what the restyle uses: the 46 layers and 19 text styles Prota marks
+as its own with its `LayerCode` data, the arranger's own layers, `Standard`,
+the few unmarked names a raw Prota export still draws on (`INFORMATION`,
+`DIMENSION`, `1`, `3`, `SHADOW-253`, `T200`), and the linetypes those
+need. It holds no geometry, title block or logo, and none of the office's
+other layers. To refresh it from a newer template:
+
+    node extract-template.js "BEAM DETAILS.dxf" templates/office.json --names-from=<raw Prota exports>
+
+Without the flag every drawing comes out byte for byte as before. With it,
+every output still passes `check-references.js`.
+
 ### Dimensions have moved layer between exports
 
 The detail dimensions have arrived on three different layers across exports of
@@ -1028,6 +1088,7 @@ node build-details.js myfile.dxf                        # every storey, every be
 node build-details.js myfile.dxf --storey=2             # one storey only
 node build-details.js myfile.dxf --first=1 --last=10    # a range within each storey
 node build-details.js myfile.dxf --out=trial.dxf        # a different output name
+node build-details.js myfile.dxf --template             # the office's colours and fonts
 ```
 
 There is no default drawing: run without a name, it prints its usage and stops.
@@ -1205,6 +1266,9 @@ those runs.
 | `plan-marks.js` | one mark per merged beam on the plan, and the rule for nudging two apart |
 | `dxf-scene.js` | turns a DXF into drawing primitives, for the preview only |
 | `dxf-scene-cli.js` | the command line for that |
+| `template.js` | reads an office template's layers, text styles, linetypes and detail-dimension colours, and restyles a drawing from them |
+| `extract-template.js` | writes a template drawing out as `templates/office.json`, keeping only what the restyle uses |
+| `templates/office.json` | the office template the page carries, from `BEAM DETAILS.dxf` |
 | `check-references.js` | reads an output back and fails it if a layer, style, linetype or block it names has no record, an entity has no handle, or Defpoints would plot |
 
 ## The web front end

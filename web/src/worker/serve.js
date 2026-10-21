@@ -33,7 +33,7 @@ function looksLikeDxf(text) {
   return /\bSECTION\b/.test(head);
 }
 
-function run({ splitLines, joinLines, buildDetailSheet }, { text, name, scope }) {
+function run({ splitLines, joinLines, buildDetailSheet, template }, { text, name, scope, useTemplate }) {
   if (!text.length) throw new Error("that file is empty");
   if (!looksLikeDxf(text))
     throw new Error("that does not look like an ASCII DXF file");
@@ -53,6 +53,8 @@ function run({ splitLines, joinLines, buildDetailSheet }, { text, name, scope })
       usesCRLF,
       srcName: name,
       outName,
+      // Only a pipeline that carries a template can apply one; v1 does not.
+      template: useTemplate && template ? template : null,
       log,
     });
   } catch (e) {

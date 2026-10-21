@@ -1,0 +1,589 @@
+{
+  "source": "BEAM DETAILS.dxf",
+  "ltscale": 30,
+  "layers": {
+    "0": {
+      "colour": 7,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "1": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "3": {
+      "colour": 3,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "DEFPOINTS": {
+      "colour": 7,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": false
+    },
+    "BZ_DIM OUTER": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Quantity Table Line": {
+      "colour": 161,
+      "trueColour": 11184895,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Quantity Table Title": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Quantity Table Text": {
+      "colour": 250,
+      "trueColour": 4276545,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Quantity Table Header": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Beam Line(D)": {
+      "colour": 2,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Axis Line(Dir 2)": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "CENTER2",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Axis Circle(Dir 2)": {
+      "colour": 150,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Axis Label(Dir 1)": {
+      "colour": 7,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Axis Label(Dir 2)": {
+      "colour": 7,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Axis Line(Dir 1)": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "CENTER2",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Axis Circle(Dir 1)": {
+      "colour": 150,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Beam Line": {
+      "colour": 7,
+      "trueColour": null,
+      "linetype": "HIDDEN2",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Beam Label": {
+      "colour": 7,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Column Line": {
+      "colour": 7,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Column Label": {
+      "colour": 149,
+      "trueColour": 3490383,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Slab Edge Line": {
+      "colour": 5,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Slab Label": {
+      "colour": 5,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Ghost Axis Line": {
+      "colour": 9,
+      "trueColour": 12500670,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Column Hatch": {
+      "colour": 254,
+      "trueColour": 15258811,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Transfer Column Hatch": {
+      "colour": 5,
+      "trueColour": null,
+      "linetype": "HIDDEN2",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Shearwall Line": {
+      "colour": 12,
+      "trueColour": 12386304,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Level Mark Line": {
+      "colour": 8,
+      "trueColour": 8553090,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Level Mark Text": {
+      "colour": 8,
+      "trueColour": 8553090,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Rebar Kink": {
+      "colour": 4,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Rebar Label": {
+      "colour": 6,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Top Rebar Label": {
+      "colour": 6,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Rebar Line": {
+      "colour": 4,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Top Rebar Line": {
+      "colour": 4,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Rebar Length Text": {
+      "colour": 8,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Leader Line": {
+      "colour": 5,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Link Line": {
+      "colour": 4,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Link Label": {
+      "colour": 6,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Link Length Text": {
+      "colour": 96,
+      "trueColour": 33024,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Section Line": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Section Label": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Break Line": {
+      "colour": 10,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Front Elevation Line": {
+      "colour": 40,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Back Elevation Line": {
+      "colour": 2,
+      "trueColour": null,
+      "linetype": "HIDDEN2",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Beam Label(D)": {
+      "colour": 4,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Quantity Table Rebar Line": {
+      "colour": 112,
+      "trueColour": 48478,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Section Small Text": {
+      "colour": 5,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "DIMENSION": {
+      "colour": 7,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Dimension Line": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "INFORMATION": {
+      "colour": 4,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "SHADOW-253": {
+      "colour": 253,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "T200": {
+      "colour": 231,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Quantity Table Line 2": {
+      "colour": 161,
+      "trueColour": 11184895,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Dimension Text": {
+      "colour": 5,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Column Label(D)": {
+      "colour": 12,
+      "trueColour": 12386304,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "Column Line(D)": {
+      "colour": 1,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 9,
+      "plots": null
+    },
+    "MD-BEAM LABEL": {
+      "colour": 6,
+      "trueColour": null,
+      "linetype": "Continuous",
+      "lineweight": 0,
+      "plots": null
+    }
+  },
+  "linetypes": {
+    "Continuous": {
+      "description": "Solid line",
+      "pattern": []
+    },
+    "CENTER2": {
+      "description": "Center (.5x) ___ _ ___ _ ___ _ ___ _ ___ _ ___",
+      "pattern": [
+        0.75,
+        -0.125,
+        0.125,
+        -0.125
+      ]
+    },
+    "HIDDEN2": {
+      "description": "Hidden (.5x) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _",
+      "pattern": [
+        3.174999999999999,
+        -1.587499999999999
+      ]
+    }
+  },
+  "styles": {
+    "Standard": {
+      "font": "txt",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": null,
+      "familyFlags": null
+    },
+    "Quantity Table Title": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Quantity Table Text": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Quantity Table Header": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Axis Label(Dir 1)": {
+      "font": "ARIALNB.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 33554432
+    },
+    "Axis Label(Dir 2)": {
+      "font": "ARIALNB.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 33554432
+    },
+    "Beam Label": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Column Label": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Slab Label": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Level Mark Text": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Rebar Label": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Top Rebar Label": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Rebar Length Text": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Link Label": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Link Length Text": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Section Label": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Beam Label(D)": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Section Small Text": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Dimension Text": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    },
+    "Column Label(D)": {
+      "font": "ARIALN.TTF",
+      "bigfont": "",
+      "width": 1,
+      "oblique": 0,
+      "family": "Arial Narrow",
+      "familyFlags": 0
+    }
+  },
+  "dimensions": {
+    "style": "BEZAL_100",
+    "lines": 1,
+    "extensions": 1,
+    "text": 2
+  },
+  "extracted": "2026-10-21"
+}

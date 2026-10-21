@@ -7,6 +7,8 @@
 //   node build-details.js myfile.dxf --first=1 --last=10    # a range within each storey
 //   node build-details.js myfile.dxf --out=trial.dxf        # a different output name
 //   node build-details.js myfile.dxf --replace-span-labels  # drop Prota's span labels
+//   node build-details.js myfile.dxf --template             # the office's colours and fonts
+//   node build-details.js myfile.dxf --template=other.dxf   # another template's (or a .json)
 //
 // The arranging itself lives in detail-sheet.js, which never touches a disk,
 // so the same code runs here and in the browser. This file is the half that
@@ -18,6 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import { readLines, writeLines } from "./dxf-io-node.js";
 import { buildDetailSheet } from "./detail-sheet.js";
+import { readTemplate } from "./template.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,7 +39,7 @@ const flags = new Map(
 const srcName = argv.find((a) => !a.startsWith("--"));
 if (!srcName) {
   console.error(
-    "usage: node build-details.js <drawing.dxf> [--storey=N] [--first=N] [--last=N] [--out=NAME] [--replace-span-labels]",
+    "usage: node build-details.js <drawing.dxf> [--storey=N] [--first=N] [--last=N] [--out=NAME] [--replace-span-labels] [--template[=FILE]]",
   );
   process.exit(1);
 }
@@ -58,6 +61,15 @@ const OUT =
       );
 const OUT_DIR = path.dirname(OUT);
 
+// --template alone is the office's, the definition the page carries; given a
+// file, a .json is such a definition and a .dxf is read for one whole.
+function loadTemplate(flag) {
+  if (!flag) return null;
+  const file = flag === true ? path.join(__dirname, "templates", "office.json") : path.resolve(flag);
+  if (/[.]json$/i.test(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
+  return readTemplate(readLines(file).lines, { source: path.basename(file) });
+}
+
 const { lines, usesCRLF } = readLines(SRC);
 
 const result = buildDetailSheet({
@@ -73,6 +85,7 @@ const result = buildDetailSheet({
   // Prota's per-span labels on the plan are kept beside the merged marks
   // unless this is passed; see "mark the plan" in detail-sheet.js for why.
   replaceSpanLabels: Boolean(flags.get("replace-span-labels")),
+  template: loadTemplate(flags.get("template")),
   // Reported as it happens rather than at the end, so a run that throws
   // half way still shows how far it got.
   log: (...args) => console.log(...args),

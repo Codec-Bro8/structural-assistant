@@ -14,6 +14,7 @@ export default function Sidebar({
   onRun,
   job,
   onOpenReport,
+  template,
 }) {
   const fileInput = useRef(null);
   const [narrowed, setNarrowed] = useState(false);
@@ -75,6 +76,24 @@ export default function Sidebar({
           </select>
         </label>
       </section>
+
+      {template && (
+        <section className="block">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={template.on}
+              disabled={busy}
+              onChange={(e) => template.set(e.target.checked)}
+            />
+            <span>Use our template</span>
+          </label>
+          <p className="note">
+            The office's colours, linetypes and fonts, from BEAM DETAILS.dxf,
+            in place of Prota's. The drawing itself is the same either way.
+          </p>
+        </section>
+      )}
 
       <section className="block">
         <button

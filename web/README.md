@@ -41,6 +41,14 @@ v1 is a frozen copy of the pipeline taken just before that work, in
 version gives exactly the bytes the command line gave at its commit. A v2 file
 downloads as `NAME.arranged.v2.dxf`, so it can sit beside the v1 one.
 
+v2 also has **Use our template**, on until someone turns it off and
+remembered in the browser. It restyles the sheet in the office's colours,
+linetypes and fonts from `BEAM DETAILS.dxf`, in place of Prota's. Most of a
+Prota 2021 export is otherwise white. The drawing itself is the same either
+way, and turning it on or off runs the drawing again. What it does, and what
+the page carries for it, is in `plan.md` under "The office template restyles
+the sheet".
+
 The numbers on the page are parsed out of what the run printed, not counted a
 second time, so they cannot disagree with the report underneath them. The
 download is the arranger's own output, byte for byte — the same bytes

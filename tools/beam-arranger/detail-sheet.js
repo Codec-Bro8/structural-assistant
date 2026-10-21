@@ -55,6 +55,7 @@ import {
 } from "./plan-marks.js";
 import { buildBeamMarkTextEntity } from "./build-entity.js";
 import { completeTables, ensureLayer, findLayer, resolveTextStyle } from "./tables.js";
+import { applyTemplate } from "./template.js";
 
 
 // --- frame, measured off the engineer's own sheet -------------------------
@@ -1739,6 +1740,18 @@ function buildDetailSheet(options) {
   // Then whatever the drawing itself left undefined, so the file opens in
   // AutoCAD and not only in a viewer. See completeTables in tables.js.
   const completed = completeTables(lines, hx);
+  // And last, on request, the office's look. See template.js.
+  // The dimensions it recolours are the sheet's own -- elevations and strip --
+  // named by their blocks, since every line index has moved by now.
+  const sheetDims = new Set(
+    jobs
+      .flatMap((j) => j.lon.concat(j.xsecs.flatMap((x) => x.ents)))
+      .filter((e) => e.type === "DIMENSION" && e.dimBlock)
+      .map((e) => e.dimBlock.trim()),
+  );
+  const styled = options.template
+    ? applyTemplate(lines, options.template, hx, { dimensionBlocks: sheetDims })
+    : null;
   bumpHandSeed(lines, nextHandle);
 
   // --- report ---
@@ -1856,6 +1869,16 @@ function buildDetailSheet(options) {
       `  defined what the drawing names but never defines, so AutoCAD will open it: ` +
         `${completed.layers.length} layer(s), ${completed.styles.length} text style(s), ` +
         `${completed.linetypes.length} linetype(s)${completed.linetypes.length ? ` (${completed.linetypes.join(", ")})` : ""}.`,
+    );
+  if (styled)
+    log(
+      `  restyled from the office template${options.template.source ? ` (${options.template.source})` : ""}: ` +
+        `${styled.layers} layer(s), ${styled.styles} text style(s)` +
+        (styled.linetypes.length ? `, linetypes ${styled.linetypes.join(", ")}` : "") +
+        (styled.ltscale ? `, LTSCALE ${styled.ltscale}` : "") +
+        (styled.dimensions ? `, ${styled.dimensions.dimensions} dimension(s) in ${styled.dimensions.style}'s colours` : "") +
+        (styled.keptLinetype.length ? `; kept Prota's linetype on ${styled.keptLinetype.join(", ")}` : "") +
+        ".",
     );
   log(`  ${ctx.movedBlocks.size} dimension blocks moved with their dimensions.`);
   log(

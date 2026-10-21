@@ -88,10 +88,10 @@ export async function listExamples() {
 
 /**
  * Runs the arranger. Pass either a File or the name of a drawing in
- * examples/; `scope` may carry storey, first and last, and `version` is
- * "v1" or "v2".
+ * examples/; `scope` may carry storey, first and last, `version` is "v1" or
+ * "v2", and `useTemplate` asks for the office template where there is one.
  */
-export async function run({ file, example, scope = {}, version = "v1" }, signal) {
+export async function run({ file, example, scope = {}, version = "v1", useTemplate = false }, signal) {
   terminate();
 
   const source = example
@@ -115,13 +115,14 @@ export async function run({ file, example, scope = {}, version = "v1" }, signal)
       // Only the flags the user actually set, and only if they are numbers --
       // the driver takes a storey name but the page offers a number field.
       scope: numericOnly(scope),
+      useTemplate,
     },
     signal,
   );
   const elapsed = performance.now() - began;
 
   if (!result.ok)
-    return { id: held.id, ok: false, version, label: example || file.name, log: result.log, error: result.error, elapsed };
+    return { id: held.id, ok: false, version, template: useTemplate, label: example || file.name, log: result.log, error: result.error, elapsed };
 
   held.url = URL.createObjectURL(
     new Blob([result.bytes], { type: "application/dxf" }),
@@ -131,6 +132,7 @@ export async function run({ file, example, scope = {}, version = "v1" }, signal)
     id: held.id,
     ok: true,
     version,
+    template: useTemplate,
     label: example || file.name,
     log: result.log,
     report: result.report,
