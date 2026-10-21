@@ -121,6 +121,7 @@ const ELEVATION_LAYERS = new Set([
   "Back Elevation Line",
 ]);
 const ROW_SPLIT_GAP = 1200; // y gap separating one source detail row from the next
+const RUN_GAP = 300; // x gap in the elevation lines meaning a different beam
 const TITLE_CLEAR = 100; // clearance below a row title when partitioning rows
 const DEFAULT_TITLE_DROP = 1500; // assumed title drop for a row that has none
 const ZONE_LEFT_PAD = 700; // a detail's leftmost dimension reaches back past its elevation
@@ -341,11 +342,65 @@ function partitionByStorey(detail, spanTitles, storeys) {
 const FACE_JOIN = 50; // largest break in a face line that is still one beam
 const FACE_SPAN_MIN = 500; // shortest run of faces taken for a span of its own
 
+// Not every detail has a cross-section. Prota draws a short stub as an
+// elevation alone -- on the AGUNGI full export, 1B59 (0.9m) and 3B48 (1.4m).
+// With no section to end it, it was swept into the detail beside it: 1B59,
+// standing after 1B57's section, went up into the strip as part of that
+// section, and 3B48, standing ahead of 3B83's elevation, was carried at the
+// front of it. Each left its own beam with no detail at all.
+//
+// Such a stub still hangs a span title of its own, and that is what finds it.
+// After a row's last section, elevation with its own title over it is a
+// detail of its own. Without one it is the beam before, drawn on past its
+// section, and stays where it was. Ahead of a detail's elevation, a title off
+// the baseline of the detail's own titles, over elevation that a clear break
+// separates from the rest, is a stub too. The baseline is what makes the break
+// safe to trust: an export can chop one beam's elevation into fragments 1.2m
+// apart, but all of that beam's titles share one baseline.
+function leadingStub(own, titles) {
+  if (titles.length < 2) return null;
+  const main = onBaseline(titles);
+  const start = Math.min(...main.map((t) => t.x));
+  const off = titles.filter((t) => !main.includes(t) && t.x < start);
+  if (!off.length) return null;
+  const from = Math.max(...off.map((t) => t.x));
+  let reach = -Infinity;
+  let at = null;
+  let widest = 0;
+  for (const e of own.slice().sort((a, b) => a.x0 - b.x0)) {
+    const gap = e.x0 - reach;
+    if (reach > from && (reach + e.x0) / 2 < start && gap >= RUN_GAP && gap > widest) {
+      widest = gap;
+      at = (reach + e.x0) / 2;
+    }
+    reach = Math.max(reach, e.x1);
+  }
+  return at;
+}
+
 function rowZones(row, sections, faces = []) {
   const secs = sections
     .filter((s) => s.cy >= row.band.y0 && s.cy <= row.band.y1)
     .sort((a, b) => a.cx - b.cx);
   const zones = [];
+  const open = (sec, left, right) => {
+    const own = row.items.filter((e) => e.cx > left && e.cx < right);
+    zones.push({
+      sec,
+      secs: sec ? [sec] : [],
+      left,
+      titles: row.titles.filter((t) => t.x > left && t.x < right),
+      elev: own.length
+        ? {
+            x0: Math.min(...own.map((e) => e.x0)),
+            x1: Math.max(...own.map((e) => e.x1)),
+            y0: Math.min(...own.map((e) => e.y0)),
+            y1: Math.max(...own.map((e) => e.y1)),
+          }
+        : null,
+      band: row.band,
+    });
+  };
   let left = -Infinity;
   for (const sec of secs) {
     // The elevation always stops left of its own section title, so the lines
@@ -357,23 +412,18 @@ function rowZones(row, sections, faces = []) {
       left = sec.cx;
       continue;
     }
-    zones.push({
-      sec,
-      secs: [sec],
-      left,
-      titles: row.titles.filter((t) => t.x > left && t.x < sec.cx),
-      elev: own.length
-        ? {
-            x0: Math.min(...own.map((e) => e.x0)),
-            x1: Math.max(...own.map((e) => e.x1)),
-            y0: Math.min(...own.map((e) => e.y0)),
-            y1: Math.max(...own.map((e) => e.y1)),
-          }
-        : null,
-      band: row.band,
-    });
+    const stub = leadingStub(
+      own,
+      row.titles.filter((t) => t.x > left && t.x < sec.cx),
+    );
+    if (stub !== null) {
+      open(null, left, stub);
+      open(sec, stub, sec.cx);
+    } else open(sec, left, sec.cx);
     left = sec.cx;
   }
+  if (row.items.some((e) => e.cx > left) && row.titles.some((t) => t.x > left))
+    open(null, left, Infinity);
   for (const z of zones) {
     if (!z.elev) continue;
     let x0 = z.elev.x0;
@@ -390,7 +440,9 @@ function rowZones(row, sections, faces = []) {
       z.elev = { ...z.elev, x0, onFaces: z.elev.x0 - x0 };
   }
   // A zone reaches right until the next beam's ground begins, measured from
-  // its last section rather than its first so a second one is inside it.
+  // its last section rather than its first so a second one is inside it. A
+  // stub at the end of a row reaches as far past its elevation as a detail
+  // reaches back before one.
   //
   // The next beam's ground starts where its own zone does, ZONE_LEFT_PAD
   // before its elevation, so that the callouts it hangs out to the left are
@@ -408,7 +460,9 @@ function rowZones(row, sections, faces = []) {
     z.x1 =
       next && next.elev
         ? next.x0
-        : lastSec.cx + TRAIL_LOOKAHEAD;
+        : lastSec
+          ? lastSec.cx + TRAIL_LOOKAHEAD
+          : z.elev.x1 + ZONE_LEFT_PAD;
   });
   return zones.filter((z) => z.elev);
 }
@@ -491,6 +545,18 @@ function splitDetail(zone, detail) {
   const titles = mine.filter((e) => e.layer === TITLE_LAYER);
 
   const secTitles = zone.secs || [zone.sec];
+  // A stub drawn with no cross-section is all longitudinal.
+  if (!secTitles.length)
+    return {
+      lon: geom.concat(riders),
+      xsecs: [],
+      spilled: 0,
+      titles,
+      secTitle: null,
+      cut: null,
+      gap: null,
+      zone: { x0: zone.x0, x1: zone.x1, y0: zone.band.y0, y1: zone.band.y1 },
+    };
   const elevRight = zone.elev.x1;
 
   // The widest gap in entity positions between two marks, which is where one
@@ -887,7 +953,7 @@ function buildDetailSheet(options) {
   zones.forEach((z, i) => {
     const next = zones[i + 1];
     if (!next || next.band !== z.band) return;
-    const from = z.secs[z.secs.length - 1].cx;
+    const from = z.secs.length ? z.secs[z.secs.length - 1].cx : z.elev.x1;
     const to = next.elev.x0;
     const inRow = (e) => e.cy >= z.band.y0 && e.cy <= z.band.y1;
     const near = leaderEnts.filter((l) => inRow(l) && l.x1 >= from && l.x0 <= to);
@@ -911,29 +977,45 @@ function buildDetailSheet(options) {
       (t) => t.mark,
     );
 
-  const settled = reconcileWithDetails(planGroups, zones);
+  // A stub drawn with no cross-section does not get to split a beam. The
+  // engineer numbered neither of the 1st floor's: each stays a small detail
+  // of the beam the plan runs it on with -- 1B19 beside BEAM 6 under its own
+  // span title, 1B28 at the end of a row with room, untitled. So the plan's
+  // reading stands for a stub, and one the plan reads as a beam of its own
+  // (the AGUNGI full export's 1B59 and 3B48) is one.
+  const settled = reconcileWithDetails(planGroups, zones.filter((z) => z.sec));
   const { beams, byMark } = numberBeams(settled.groups);
   log(`${srcName}: ${labels.length} span labels -> ${beams.length} beams.`);
 
   const zonesByBeam = new Map();
+  const stubsByBeam = new Map();
   let unresolved = [];
   const orphans = [];
-  for (const z of zones) {
+  // Stubs last, so each knows whether its beam already has a detail.
+  for (const z of [...zones.filter((z) => z.sec), ...zones.filter((z) => !z.sec)]) {
     const storey = z.storey;
     const owner = zoneOwner(z, byMark);
+    const at = z.sec
+      ? `cross-section at x=${z.sec.cx.toFixed(0)}`
+      : `elevation with no cross-section at x=${z.elev.x0.toFixed(0)}`;
     if (!owner.key) {
       orphans.push(z);
       unresolved.push({
         zone: z,
-        text: `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)} y=${z.sec.cy.toFixed(0)} resolves to no beam (titles: ${z.titles.map((t) => t.mark).join(",") || "none"})`,
+        text: `storey ${storey} ${at} y=${(z.sec || { cy: z.elev.y0 }).cy.toFixed(0)} resolves to no beam (titles: ${z.titles.map((t) => t.mark).join(",") || "none"})`,
       });
       continue;
     }
     if (owner.note)
       unresolved.push({
         zone: z,
-        text: `storey ${storey} cross-section at x=${z.sec.cx.toFixed(0)}: ${owner.note}`,
+        text: `storey ${storey} ${at}: ${owner.note}`,
       });
+    if (!z.sec && zonesByBeam.has(owner.key)) {
+      if (stubsByBeam.has(owner.key)) stubsByBeam.get(owner.key).push(z);
+      else stubsByBeam.set(owner.key, [z]);
+      continue;
+    }
     if (zonesByBeam.has(owner.key)) zonesByBeam.get(owner.key).push(z);
     else zonesByBeam.set(owner.key, [z]);
   }
@@ -1012,29 +1094,32 @@ function buildDetailSheet(options) {
         );
         continue;
       }
-      const s = splitDetail(zs[0], raw);
       // The callouts are tidied where they stand, before the elevation is
       // measured for the layout, so the row it lands in is sized for them
       // as they end up. See callouts.js.
-      const arrows = reseatArrows(lines, s.lon);
-      const clashes = declash(lines, s.lon, blockRanges);
-      calloutTally.arrows += arrows.reseated;
-      calloutTally.moved += clashes.moved.length;
-      calloutTally.slid += clashes.slid.length;
-      calloutTally.flipped += clashes.flipped.length;
-      calloutTally.stuck += clashes.stuck.length;
-      if (arrows.refused.length)
-        notes.push(
-          `storey ${storey} BEAM ${n}: side-bar arrows left as Prota drew them (${arrows.refused.join("; ")}) -- the count does not match`,
-        );
-      if (clashes.stuck.length)
-        problems.push(
-          `storey ${storey} BEAM ${n}: ${clashes.stuck.length} callout(s) still land on something, no clear spot within reach -- ${clashes.stuck.join(", ")}`,
-        );
-      if (clashes.crossing.length)
-        problems.push(
-          `storey ${storey} BEAM ${n}: ${clashes.crossing.length} callout(s) moved off other text, but only to where the leader crosses text -- ${clashes.crossing.join(", ")}`,
-        );
+      const tidy = (lon) => {
+        const arrows = reseatArrows(lines, lon);
+        const clashes = declash(lines, lon, blockRanges);
+        calloutTally.arrows += arrows.reseated;
+        calloutTally.moved += clashes.moved.length;
+        calloutTally.slid += clashes.slid.length;
+        calloutTally.flipped += clashes.flipped.length;
+        calloutTally.stuck += clashes.stuck.length;
+        if (arrows.refused.length)
+          notes.push(
+            `storey ${storey} BEAM ${n}: side-bar arrows left as Prota drew them (${arrows.refused.join("; ")}) -- the count does not match`,
+          );
+        if (clashes.stuck.length)
+          problems.push(
+            `storey ${storey} BEAM ${n}: ${clashes.stuck.length} callout(s) still land on something, no clear spot within reach -- ${clashes.stuck.join(", ")}`,
+          );
+        if (clashes.crossing.length)
+          problems.push(
+            `storey ${storey} BEAM ${n}: ${clashes.crossing.length} callout(s) moved off other text, but only to where the leader crosses text -- ${clashes.crossing.join(", ")}`,
+          );
+      };
+      const s = splitDetail(zs[0], raw);
+      tidy(s.lon);
       const lonBox = box(s.lon.filter((e) => !e.empty));
       const elevBox = box(s.lon.filter((e) => ELEVATION_LAYERS.has(e.layer)));
       if (!lonBox || !elevBox) {
@@ -1049,7 +1134,11 @@ function buildDetailSheet(options) {
           `storey ${storey} BEAM ${n}: its first ${Math.round(zs[0].elev.onFaces)}mm is drawn without elevation lines -- taken from the beam's own faces`,
         );
       }
-      if (!s.xsecs.length)
+      if (!zs[0].sec)
+        notes.push(
+          `storey ${storey} BEAM ${n}: Prota draws it with no cross-section -- placed in its row, with nothing on the strip`,
+        );
+      else if (!s.xsecs.length)
         problems.push(
           `storey ${storey} BEAM ${n}: no cross-section found right of the elevation`,
         );
@@ -1059,6 +1148,23 @@ function buildDetailSheet(options) {
             s.xsecs.map((_, k) => sectionName(n, k + 1)).join(", "),
         );
       jobs.push({ ...beam, ...s, lonBox, elevBox });
+
+      // A stub of this beam drawn apart goes beside it, as itself: its own
+      // span title stays, and it takes no number of its own.
+      for (const z of stubsByBeam.get(key) || []) {
+        const t = splitDetail(z, raw);
+        tidy(t.lon);
+        const tBox = box(t.lon.filter((e) => !e.empty));
+        const tElev = box(t.lon.filter((e) => ELEVATION_LAYERS.has(e.layer)));
+        if (!tBox || !tElev) {
+          problems.push(`storey ${storey} BEAM ${n}: ${z.marks.join("+")} has no longitudinal geometry -- left in place`);
+          continue;
+        }
+        notes.push(
+          `storey ${storey} BEAM ${n}: ${z.marks.join("+")} is drawn apart with no cross-section -- placed beside it, under its own span title`,
+        );
+        jobs.push({ ...beam, ...t, lonBox: tBox, elevBox: tElev, stubOf: z.marks });
+      }
     }
   }
   jobs.sort((a, b) => compareStorey(a.storey, b.storey) || a.num - b.num);
@@ -1136,11 +1242,20 @@ function buildDetailSheet(options) {
     let used = 0;
     for (const j of mine) {
       const w = j.lonBox.x1 - j.lonBox.x0;
+      // A stub goes in its beam's row, which was made wide enough for it.
+      if (j.stubOf) {
+        row.beams.push(j);
+        used += BEAM_GAP + w;
+        continue;
+      }
+      const withStubs = mine
+        .filter((s) => s.stubOf && s.key === j.key)
+        .reduce((a, s) => a + BEAM_GAP + s.lonBox.x1 - s.lonBox.x0, w);
       if (w > budget)
         problems.push(
           `storey ${storey} BEAM ${j.num}: ${w.toFixed(0)}mm wide, wider than the ${budget}mm frame -- given its own row and overhangs`,
         );
-      if (!row || used + BEAM_GAP + w > budget) {
+      if (!row || used + BEAM_GAP + withStubs > budget) {
         row = { storey, beams: [j] };
         rowsOut.push(row);
         used = w;
@@ -1349,13 +1464,17 @@ function buildDetailSheet(options) {
         // them up and down across the row by however much the details differ
         // in depth, which reads as a mistake even though every title is
         // correctly placed.
-        const keeper = j.titles[0] || null;
+        //
+        // A stub beside its beam keeps its own span titles where Prota hung
+        // them, so it still says which span it is.
+        const keeper = j.stubOf ? null : j.titles[0] || null;
         const titleAt = {
           x: (j.elevBox.x0 + j.elevBox.x1) / 2 + lonDx,
           y: row.baseline - row.below - TITLE_GAP,
           text: `%%UBEAM ${j.num}`,
         };
-        if (keeper) placeTitle(lines, keeper, titleAt.x, titleAt.y, titleAt.text);
+        if (j.stubOf) moveEntities(lines, j.titles, lonDx, lonDy, ctx);
+        else if (keeper) placeTitle(lines, keeper, titleAt.x, titleAt.y, titleAt.text);
         else untitled.push({ j, ...titleAt });
         report.push({
           j, frame, row, rowIdx, cursor, lonDx, lonDy, xsecAt, sec, keeper, cuts, relayered, shrunk,
@@ -1590,7 +1709,7 @@ function buildDetailSheet(options) {
       }
   for (const r of report) {
     for (const t of r.j.titles)
-      if (t !== r.keeper) deleteRanges.push([t.start, t.end]);
+      if (t !== r.keeper && !r.j.stubOf) deleteRanges.push([t.start, t.end]);
     for (const e of r.j.lon.concat(r.j.xsecs.flatMap((x) => x.ents)))
       if (DROP_LAYERS.has(e.layer)) { deleteRanges.push([e.start, e.end]); dropped++; }
   }
@@ -1626,7 +1745,7 @@ function buildDetailSheet(options) {
       `cross-section pitch ${pitch}mm, ${slotsPerLine} per strip line.\n`,
   );
   for (const frame of frames) {
-    const n = frame.rows.reduce((a, r) => a + r.beams.length, 0);
+    const n = frame.rows.reduce((a, r) => a + r.beams.filter((j) => !j.stubOf).length, 0);
     log(
       `FRAME ${frames.indexOf(frame) + 1}  storey ${frame.storey}: ${n} beams, ` +
         `${frame.rows.length} row(s), strip on ${frame.lines} line(s) at y=${frame.stripY.map((y) => y.toFixed(0)).join(", ")}`,
@@ -1634,13 +1753,25 @@ function buildDetailSheet(options) {
     for (const row of frame.rows)
       log(
         `   row ${frame.rows.indexOf(row) + 1} baseline y=${row.baseline.toFixed(0)}: ` +
-          row.beams.map((j) => `BEAM ${j.num}`).join(", "),
+          row.beams
+            .map((j) => (j.stubOf ? `+ ${j.stubOf.join("+")}` : `BEAM ${j.num}`))
+            .join(", ")
+            .replace(/, \+/g, " +"),
       );
   }
   log("");
   for (const r of report) {
     const j = r.j;
     const n = (pred) => j.lon.filter(pred).length;
+    // A stub reads as part of its beam, under it, and is not a beam heading:
+    // the page counts those as beams placed.
+    if (j.stubOf) {
+      log(
+        `   + ${j.stubOf.join("+")} beside it, drawn with no cross-section: longitudinal ${String(j.lon.length).padStart(3)} ents, ` +
+          `elevation ${(j.elevBox.x1 - j.elevBox.x0).toFixed(0)}mm  ->  x=${r.cursor.toFixed(0)} baseline=${r.row.baseline.toFixed(0)}`,
+      );
+      continue;
+    }
     log(
       `S${j.storey} BEAM ${String(j.num).padStart(2)} (${j.sizeLabel})  frame ${r.frameNo}, row ${r.rowIdx + 1}, ` +
         `strip ${r.xsecAt.map((p) => `line ${p.line} slot ${p.col}`).join(" + ") || "-"}  <- ${j.marks.join("+")}\n` +
@@ -1652,7 +1783,9 @@ function buildDetailSheet(options) {
               `   section ${sectionName(j.num, k + 1).padEnd(4)} ${String(x.ents.length).padStart(3)} ents (${x.ents.filter((e) => e.type === "HATCH").length} fills)  ->  x=${r.xsecAt[k] ? r.xsecAt[k].x0.toFixed(0) : "n/a"}\n`,
           )
           .join("") +
-        `   split on a ${j.gap.toFixed(0)}mm gap at x=${j.cut.toFixed(0)};  cut marks x${r.sec.marks}, titles x${r.sec.titles} -> ${r.sec.names.join(", ")}`,
+        (j.cut === null
+          ? `   no cross-section drawn`
+          : `   split on a ${j.gap.toFixed(0)}mm gap at x=${j.cut.toFixed(0)};  cut marks x${r.sec.marks}, titles x${r.sec.titles} -> ${r.sec.names.join(", ")}`),
     );
   }
   const strayCount = [...strays.values()].reduce((n, l) => n + l.length, 0);

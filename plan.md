@@ -417,6 +417,53 @@ Both layers are now in `DETAIL_LAYERS`, and an empty text is a rider:
 Counted as ink, their stray coordinates made the roof set's frames 20m taller.
 The roof set's sheet now lands 6.6m under its plan, the raft's 6.4m.
 
+### A detail can have no cross-section
+
+Prota does not cut every beam. A short stub is drawn as an elevation alone,
+with no section beside it. The AGUNGI full export has two, 1B59 (0.9m) and
+3B48 (1.4m), and the 1st floor has two more, 1B19 on `1st-sm` and 1B28 on
+`1st-BIG` (1.1m each).
+
+Zones were opened only at cross-sections, so a stub had no zone of its own. It
+went with whatever stood beside it:
+- **After a row's last section** (1B59, 1B28) it was swept into that section.
+  1B59 went up to the strip inside section 23 and stretched it to 3.7m. 1B28
+  was not even that lucky: it lay past the ground the section was allowed, was
+  never moved, and its title was deleted. The leftover audit read 0.
+- **Ahead of a detail** (3B48, 1B19) it was carried on the front of that
+  detail's elevation, as part of the wrong beam.
+
+The full export reported its two as beams with no detail at all.
+
+**The rule.** A stub still hangs a span title, and that finds it:
+- after a row's last section, elevation with a title of its own over it is a
+  detail; without one it is the beam before, drawn on past its section;
+- ahead of a detail, a title off the baseline of that detail's own titles,
+  over elevation a clear break (`RUN_GAP`, 300mm) separates from the rest, is a
+  stub. The baseline is what makes the break safe to trust: an export can chop
+  one beam's elevation into fragments 1.2m apart, but all of that beam's titles
+  share one baseline.
+
+A stub's zone ends where the next one's ground begins, like any other, and a
+callout between the two goes where its leader points (next section): 1B59's
+own 2Y16-72, hung out to its left near section 23, goes with 1B59, and the
+2Y16-46 that BEAM 22 hangs out beside 3B48 stays with BEAM 22.
+
+**Whose it is.** A stub does not get to split a beam the plan reads as one,
+which is the one exception to "the details settle which spans are one beam".
+The engineer numbered neither of the 1st floor's: each stayed a small detail
+of the beam the plan runs it on with, 1B19 beside BEAM 6 under its own span
+title, 1B28 at the end of a row with room, untitled. So:
+- a stub the plan reads as a beam of its own is numbered and placed like any
+  other, with nothing on the strip (the full export's 1B59 is BEAM 24, 3B48 is
+  BEAM 20);
+- a stub of a longer plan beam goes beside that beam in its row, under its own
+  span title, and takes no number. The report lists it under its beam as
+  `+ 1B19`, and the row reads `BEAM 6 + 1B19`.
+
+1st-sm and 1st-BIG keep their numbering, and their callout scores against the
+engineer are unchanged (89 of 103, 118 of 134).
+
 ### A callout between two details goes where its leader points
 
 A zone used to reach right to 150mm short of the next detail's elevation, and
@@ -446,9 +493,9 @@ end is in, and takes its leader with it:
   The roof set's six empty bar marks now go to the next detail only.
 
 With the stray callouts gone, the full export's sections came out their own
-size, all but section 23, which still holds 1B59, a 0.9m stub drawn with no
-section of its own. Its strip pitch fell from 2516 to 2063mm, 15 sections to
-a line instead of 12, and the sheet is 8m shorter.
+size, and once 1B59 had a zone of its own (previous section) so did section
+23. Its strip pitch fell from 2516 to 2063mm, 15 sections to a line instead of
+12, and the sheet is 8m shorter.
 
 Every run now also checks that **no part is carried by two details**, and says
 so in a `WARNING` if one is. None is, on any of the eleven drawings.
@@ -979,7 +1026,7 @@ them needs the tool adjusted, not the drawing:
 |---|---|
 | Span labels read `1B1  225x450` on layer `Beam Label` | beam merging and numbering |
 | Detail titles read `%%U1B1 (225x450)` on `Beam Label(D)` | tying a detail to its beam |
-| Each beam's cross-section is drawn immediately **right** of its elevation, and is the only thing carrying an `n - n` title | finding where one beam ends and the next starts |
+| Each beam's cross-section is drawn immediately **right** of its elevation, and is the only thing carrying an `n - n` title; a short stub may have none, and is found by its own span title | finding where one beam ends and the next starts |
 | Only the longitudinal carries `Front Elevation Line` / `Back Elevation Line` | telling the two drawings apart |
 | A detail's own title hangs **below** its elevation | splitting the sheet into rows |
 | Storeys are drawn in separate blocks across the sheet | keeping one storey's rows out of another's |
@@ -1029,14 +1076,14 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-21):
 | `1st-sm` | 40 | 12 | 12 | 1 | 4 | 94 | 1 |
 | `2nd-sm` | 26 | 10 | 10 | 1 | 3 | 66 | 0 |
 | `3rd-sm` | 23 | 11 | 11 | 1 | 3 | 45 | 0 |
-| `1st-BIG.details` | 51 | 14 | 14 | 2 | 5 | 134 | 0 |
+| `1st-BIG.details` | 51 | 14 | 14 | 2 | 5 | 135 | 0 |
 | `2nd-BIG.details` | 41 | 13 | 13 | 2 | 5 | 107 | 0 |
 | `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 0 |
 | `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 22 |
 | `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 19 |
 | `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 6 |
 | `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 8 |
-| `prota-beams-full` (AGUNGI, all four storeys, outside `examples/`) | 214 | 104 | 102 | 8 | 26 | 631 | 19 |
+| `prota-beams-full` (AGUNGI, all four storeys, outside `examples/`) | 214 | 104 | 104 | 8 | 26 | 631 | 16 |
 
 On every one the leftover audit is **0**, and no part is moved twice.
 `check-references.js` passes on all but the two AGUNGI exports, which fail
@@ -1045,11 +1092,10 @@ only on layers and styles their own sources name without defining
 arranger writes.
 
 The AGUNGI full export is `ProtaData2021\AGUNGI\ExportedDrawings\prota-beams-full.dxf`:
-the foundation beams and storeys 1-3 in one file. Every moved part in it lies
-within the frame's width. Two of its beams, 1B59 and 3B48, are short stubs
-Prota draws with no cross-section; neither has a zone of its own yet, and
-1B59 rides in section 23. Its other 16 warnings are cut marks with no clear
-spot in their span.
+the foundation beams and storeys 1-3 in one file. Its 16 warnings are all cut
+marks with no clear spot in their span. Matched by handle, every detail part
+in it moved but the plans' grids, the quantity tables' bar figures and one
+slab note, and every moved part lies within the frame's width.
 
 The old run, on the raft, placed 18 of 22. It moved BEAM 7 without its first
 span and left 162 bar marks behind.
@@ -1060,8 +1106,6 @@ The only reason left is **no detail zone could be tied to it**:
   "A drawing can arrive part-finished").
 - 3 on `GRD`. That drawing still has two cross-sections whose zones hold no
   span title, and whose grid names and bar marks fit none of those beams.
-- 2 on the AGUNGI full export: 1B59 and 3B48, which have no cross-section to
-  open a zone at.
 
 Before the details settled beam identity, the roof set left 10 beams unplaced
 and `GRD` 6. Before untitled details were tied, `GRD` left 5 and
@@ -1077,14 +1121,20 @@ The rest of the warnings do not unplace anything:
   (1 on 1st-sm, 10 on `grd-floor-halo`, 11 on `GRD`, 2 on the roof set, 8 on
   the raft).
 - One oversized section on each of `grd-floor-halo` and the roof set takes two
-  strip slots, and so does section 23 on the AGUNGI full export.
+  strip slots.
 
 `GRD`, the roof set and the raft have no layout caption, so their frames read
 plain `BEAM DETAILS`.
 
 **The leftover audit has a blind spot.** It checks what stood inside a moved
 beam's zone. A span stranded outside every zone, as FB16 was, is invisible to
-it. Three drawings carried one, and the audit reported 0 on each.
+it. Three drawings carried one, and the audit reported 0 on each. So did
+`1st-BIG`, whose stub 1B28 was never moved (see "A detail can have no
+cross-section"). Matching every detail entity by handle against the output
+finds these. On all eleven drawings it now finds nothing stranded but the
+plans' own beam outlines, grids and slab notes, the beams the run already
+names as unplaced, and the details already arranged by hand on
+`grd-floor-halo`. The tool does not run that check itself yet.
 
 The tool was first built on `procta-beam-1.dxf`, which is no longer in
 `examples/`. There it turned 102 span labels into 43 beams and placed 42, with
