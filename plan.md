@@ -187,6 +187,15 @@ nearest position in its own clear span where neither mark crosses a label, link
 line or leader. It never crosses into a different span: a cut says where the
 section was taken, so it may be nudged for legibility but not relocated.
 
+**A span with no support line on one side ends at the elevation's box.** Where
+that box does not reach the cut, the beam's own faces through it end the span
+instead. Roof storey 1 BEAM 5 is a cantilever drawn on its faces alone: its
+elevation lines are only the 225mm column it springs from. A span ended by them
+stopped behind its own cut, so the cut was never searched and nothing was
+reported. It is the only such cut in the ten drawings. It is searched now, and
+has no clear position, which is reported. A cut that still has no position to
+check is now a `WARNING`.
+
 ### Nothing is ever dropped for being ambiguous
 
 Two beams went missing from the small building before this was understood, and
@@ -572,13 +581,13 @@ What the slide and the flip cost:
   back (2nd-BIG's 2Y16-18 twice, 1st-BIG's 3Y16-28). The rest are mostly
   2Y16-5/2Y16-9, where the engineer deleted the 450/500 chain instead.
 - **A cut mark through a flipped callout.** ROOF's 5Y20-13 flips up into the
-  row by the soffit, where its beam's cut mark stands. `cut-marks.js` never
-  searched that cut: its clear span comes out the wrong way round (lo past hi),
-  so the mark keeps Prota's x and no warning is raised. It also measures a
-  callout as its anchor point, not its width. Callouts crossed by a cut mark:
-  ROOF 0 → 1, all others unchanged (GRD 6, `grd-floor-halo` 6, raft 3, from
-  the same two gaps). GRD BEAM 4's cut also gained one overlap beside a flipped
-  3Y20-78.
+  row by the soffit, where its beam's cut mark stands. That cut is searched now
+  and reported as having no clear position (see "The section cut mark is
+  anchored to the beam"), but `cut-marks.js` still measures a callout as its
+  anchor point, not its width, so the mark still crosses 5Y20-13. Callouts
+  crossed by a cut mark: ROOF 0 → 1, all others unchanged (GRD 6,
+  `grd-floor-halo` 6, raft 3). GRD BEAM 4's cut also gained one overlap beside
+  a flipped 3Y20-78.
 - **Cut marks on the deep ground floors.** `cut-marks.js` avoids each leader's
   whole bounding box, so a slid square leader blocks more of the span near the
   soffit. Spans that already had no clear cut position gained overlaps: `GRD`
@@ -591,9 +600,8 @@ What the slide and the flip cost:
   rule to measure there yet.
 
 Still open:
-- in `cut-marks.js`: the inverted span that leaves a cut unsearched and
-  unreported, callouts measured as points, and leaders measured by their whole
-  bounding box;
+- in `cut-marks.js`: callouts measured as points, and leaders measured by their
+  whole bounding box;
 - flipping or pulling in callouts that do not clash, to tighten the rows as the
   engineer did with the four flips this misses;
 - link callouts, which the engineer slides along their run (218–514mm either
@@ -957,7 +965,7 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-20):
 | `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 0 |
 | `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 21 |
 | `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 18 |
-| `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 5 |
+| `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 6 |
 | `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 4 |
 
 On every one the leftover audit is **0**. `check-references.js` passes on all

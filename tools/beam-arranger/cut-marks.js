@@ -118,17 +118,28 @@ function facesAt(ents, x) {
 
 // The clear span holding x, bounded by the vertical elevation lines that stand
 // for the support faces. Falls back to the whole elevation when a beam is drawn
-// without them.
+// without them -- or, on a side where the elevation does not reach x, to the
+// beam's own faces through x. Roof storey 1 BEAM 5 is a cantilever drawn on its
+// faces alone: its elevation lines are the 225mm column it springs from, and a
+// span ended by them stopped behind its own cut.
 function spanAt(ents, x, elevBox) {
   const cuts = [];
+  const faces = [];
   for (const e of ents) {
     if (e.layer !== "Beam Line(D)") continue;
+    if (e.y1 - e.y0 <= 1 && e.x0 <= x + 1 && e.x1 >= x - 1) faces.push(e);
     if (e.x1 - e.x0 > 1) continue;
     if (e.y1 - e.y0 < 50) continue;
     cuts.push(e.x0);
   }
   let lo = elevBox.x0;
   let hi = elevBox.x1;
+  if (faces.length && (lo > x || hi < x)) {
+    const top = faces.reduce((a, b) => (b.y0 > a.y0 ? b : a));
+    const soffit = faces.reduce((a, b) => (b.y0 < a.y0 ? b : a));
+    if (lo > x) lo = Math.max(top.x0, soffit.x0);
+    if (hi < x) hi = Math.min(top.x1, soffit.x1);
+  }
   for (const c of cuts.sort((a, b) => a - b)) {
     if (c <= x && c > lo) lo = c;
     if (c >= x && c < hi) hi = c;

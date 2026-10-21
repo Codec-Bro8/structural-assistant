@@ -1251,6 +1251,11 @@ function buildDetailSheet(options) {
         for (const c of cuts) {
           if (!c.moved)
             problems.push(`storey ${j.storey} BEAM ${j.num}: cut mark not reshaped -- ${c.reason}`);
+          else if (c.clashes < 0)
+            problems.push(
+              `storey ${j.storey} BEAM ${j.num}: cut mark left where Prota drew it along the beam -- ` +
+                `no position in its span could be checked`,
+            );
           else if (c.clashes > 0)
             problems.push(
               `storey ${j.storey} BEAM ${j.num}: no clear position for the cut mark in its span -- ` +
