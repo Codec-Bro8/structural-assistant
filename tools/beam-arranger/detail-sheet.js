@@ -980,6 +980,10 @@ function buildDetailSheet(options) {
         problems.push(
           `storey ${storey} BEAM ${n}: ${clashes.stuck.length} callout(s) still land on something, no clear spot within reach -- ${clashes.stuck.join(", ")}`,
         );
+      if (clashes.crossing.length)
+        problems.push(
+          `storey ${storey} BEAM ${n}: ${clashes.crossing.length} callout(s) moved off other text, but only to where the leader crosses text -- ${clashes.crossing.join(", ")}`,
+        );
       const lonBox = box(s.lon.filter((e) => !e.empty));
       const elevBox = box(s.lon.filter((e) => ELEVATION_LAYERS.has(e.layer)));
       if (!lonBox || !elevBox) {

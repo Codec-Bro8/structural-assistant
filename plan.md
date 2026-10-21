@@ -474,29 +474,48 @@ step misses 2Y16-11's 15mm window and slides it 400mm along instead. The leader
 follows from its second vertex on, so the arrow stays on its bar. Link
 callouts, multi-arrow callouts, dimensions and bubbles are pinned.
 
-| drawing | callouts moved | callouts on other callouts, before → after | agreement with the engineer (within 0.75h) |
-|---|---|---|---|
-| `1st-sm` | 14 | 16 → 1 | 85 → 88 of 103 |
-| `2nd-sm` | 9 | 9 → 0 | 59 → 61 of 62 |
-| `3rd-sm` | 11 | 11 → 0 | 57/62 → 62/65 |
-| `1st-BIG.details` | 20 | 24 → 5 | 116/135 → 117/134 |
-| `2nd-BIG.details` | 17 | 17 → 0 | 87 → 89 of 98 |
-| `3rd-BIG.details` | 13 | 13 → 0 | 63 → 64 of 67 |
-| `grd-floor-halo` | 45 | 51 → 5 | no sheet |
-| `GRD` | 36 | 48 → 3 | no sheet |
-| `1ST 2ND-4TH ROOF` | 101 | 100 → 0 | no sheet |
-| `prota-raft-agungi` | 19 | 24 → 1 | no sheet |
+**Callouts off lines.** On the engineer's six floors no leader but a callout's
+own, and no dimension or extension line, runs through its text: 1 callout in
+652 has one within 20mm (`LINE_CLEAR`), and 14 have one within 40. A callout
+with such a line through it, or with its own leader through other text, now
+moves too, by the same search. The search runs in three tiers:
+1. text 20mm from those lines, and the dragged leader 20mm from other text;
+2. no line through the text, and no text on the leader;
+3. only for a callout on other text, clear of text alone, which is the old
+   rule.
 
-"Callouts on other callouts" counts pairs overlapping by more than 10mm, over
-the whole output, strip and unplaced beams included. On the elevations this
-pass works on, the ones left are all between two pinned callouts. Agreement
-counts callouts within 0.75 of a text height of the engineer's, each aligned on
-its own detail. Where the denominator changes, the number of callouts that
-could be aligned changed.
+Tier 3 exists because the engineer sometimes made room by deleting a short
+dimension: 1st-BIG's 450/500 chain under BEAM 1. We never delete one, and on
+the 1350-deep ground floors a square leader's leg cannot step aside. A tier
+between 2 and 3, keeping the leader off text but letting the text sit on lines,
+was tried. It slid 1st-BIG's 2Y16-5 1.3m into that dimension chain, so it was
+dropped. Every tier-3 move whose leader ends up crossing text is a `WARNING`,
+and so is every callout left with no clear spot.
+
+| drawing | callouts moved | leader still crosses text | no clear spot | leaders through a callout, before → after | agreement with the engineer (within 0.75h) |
+|---|---|---|---|---|---|
+| `1st-sm` | 15 | 0 | 0 | 16 → 0 | 85 → 88 of 103 |
+| `2nd-sm` | 9 | 0 | 0 | 9 → 0 | 59 → 61 of 62 |
+| `3rd-sm` | 11 | 0 | 0 | 11 → 0 | 57/62 → 62/65 |
+| `1st-BIG.details` | 20 | 2 | 0 | 19 → 3 | 116/135 → 117/134 |
+| `2nd-BIG.details` | 17 | 2 | 0 | 17 → 2 | 87 → 89 of 98 |
+| `3rd-BIG.details` | 13 | 2 | 0 | 13 → 2 | 63 → 64 of 67 |
+| `grd-floor-halo` | 59 | 19 | 6 | 66 → 43 | no sheet |
+| `GRD` | 48 | 10 | 4 | 71 → 24 | no sheet |
+| `1ST 2ND-4TH ROOF` | 106 | 0 | 0 | 106 → 0 | no sheet |
+| `prota-raft-agungi` | 25 | 5 | 1 | 23 → 7 | no sheet |
+
+"Leaders through a callout" counts the whole output, strip and unplaced beams
+included. Agreement counts callouts within 0.75 of a text height of the
+engineer's, each aligned on its own detail. Where the denominator changes, the
+number of callouts that could be aligned changed.
 
 Still open:
-- leaders and dimension lines through a callout: the engineer's six floors have
-  none, Prota leaves 16 on 1st-sm alone;
+- the deep ground floors' square legs, which need a leg that may slide along
+  its bar (the engineer slid 1st-sm's 2Y16-13 about 900mm along its bar to
+  clear 4Y16-14's leg);
+- link callouts, which the engineer slides along their run (218–514mm either
+  way, never across, on 1st-BIG);
 - the strip's dimensions (R4/R5).
 
 ### A beam can be cut more than once
@@ -851,13 +870,13 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-20):
 | `1st-sm` | 40 | 12 | 12 | 1 | 4 | 94 | 1 |
 | `2nd-sm` | 26 | 10 | 10 | 1 | 3 | 66 | 0 |
 | `3rd-sm` | 23 | 11 | 11 | 1 | 3 | 45 | 0 |
-| `1st-BIG.details` | 51 | 14 | 14 | 2 | 5 | 134 | 0 |
-| `2nd-BIG.details` | 41 | 13 | 13 | 2 | 5 | 107 | 0 |
-| `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 0 |
-| `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 16 |
-| `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 13 |
+| `1st-BIG.details` | 51 | 14 | 14 | 2 | 5 | 134 | 2 |
+| `2nd-BIG.details` | 41 | 13 | 13 | 2 | 5 | 107 | 2 |
+| `3rd-BIG.details` | 41 | 9 | 9 | 2 | 5 | 71 | 2 |
+| `grd-floor-halo` | 87 | 32 | 27 | 3 | 9 | 288 | 36 |
+| `GRD` | 85 | 33 | 30 | 3 | 10 | 285 | 26 |
 | `1ST 2ND-4TH ROOF` (storeys 1, 2, 5) | 288 | 116 | 116 | 9 | 35 | 836 | 5 |
-| `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 4 |
+| `prota-raft-agungi` (outside `examples/`) | 42 | 22 | 22 | 2 | 5 | 144 | 9 |
 
 On every one the leftover audit is **0**. `check-references.js` passes on all
 but the raft, which fails only on layers and styles its own source names
@@ -879,6 +898,10 @@ and `GRD` 6. Before untitled details were tied, `GRD` left 5 and
 `grd-floor-halo` 8.
 
 The rest of the warnings do not unplace anything:
+- A callout that could only be moved off other text by letting its leader
+  cross text, or that has no clear spot at all (see "Callouts are tidied where
+  they stand"): 2 on each BIG floor, 20 on `grd-floor-halo`, 12 on `GRD`, 5 on
+  the raft.
 - A beam wider than the frame gets a row to itself and overhangs it (2 on each
   ground floor, 3 on the roof set).
 - A cut mark with no clear spot in its span goes to the least obstructed one.
@@ -917,7 +940,7 @@ those runs.
 | `tables.js` | makes sure layers and text styles exist before use |
 | `layout-details.js` | detail sheet arrangement |
 | `cut-marks.js` | pulls each section cut in to the beam faces and clear of the annotation |
-| `callouts.js` | puts side-bar arrows one per side bar, and moves callouts off other text |
+| `callouts.js` | puts side-bar arrows one per side bar, and moves callouts off other text and lines |
 | `plan-marks.js` | one mark per merged beam on the plan, and the rule for nudging two apart |
 | `dxf-scene.js` | turns a DXF into drawing primitives, for the preview only |
 | `dxf-scene-cli.js` | the command line for that |

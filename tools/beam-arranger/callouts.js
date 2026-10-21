@@ -24,6 +24,13 @@
 // extent line (a link run) is pinned, as are dimensions and grid bubbles. The
 // leader follows it from its second vertex on, so the end on the bar stays
 // on the bar.
+//
+// Lines count too. On the engineer's six floors no leader but a callout's own,
+// and no dimension or extension line, runs through its text, and one callout
+// in 652 has one within 20mm; Prota leaves 16 per floor on 1st-sm alone. A
+// callout with such a line through it moves the same way, and no move puts
+// its text on a line or drags its leader through other text -- unless that
+// is the only way off other text, which is then logged.
 
 import { translateRange } from "./dxf-geom.js";
 
@@ -53,6 +60,10 @@ const STEP_ALONG = 25;
 // dimension figure inks a little past the box worked out for it, and on
 // grd-floor-halo a callout 16mm off one reads as sitting on it.
 const CLASH_GAP = 30;
+// Nearest another callout's leader, or a dimension's own lines, comes to a
+// callout. On the engineer's six floors one callout in 652 has one closer
+// than this, and 14 have one closer than 40.
+const LINE_CLEAR = 20;
 // A bar this close to a face is a main bar, not a side bar: main bars sit at
 // cover, 48mm in on every sample; side bars are 300mm and more from a face.
 const FACE_COVER = 120;
@@ -140,6 +151,27 @@ function dimInk(lines, blockRange) {
   return null;
 }
 
+// A dimension's own lines -- dimension line and extension lines -- from its
+// block, in the same absolute coordinates as its figure.
+function dimStrokes(lines, blockRange) {
+  const out = [];
+  let i = blockRange.start;
+  while (i < blockRange.end - 1) {
+    if (lines[i].trim() === "0" && lines[i + 1].trim() === "LINE") {
+      let j = i + 2;
+      while (j < blockRange.end - 1 && lines[j].trim() !== "0") j += 2;
+      const v = codes(lines, { start: i, end: j }, [10, 20, 11, 21]);
+      const a = { x: parseFloat(v[10]), y: parseFloat(v[20]) };
+      const b = { x: parseFloat(v[11]), y: parseFloat(v[21]) };
+      if ([a.x, a.y, b.x, b.y].every(isFinite)) out.push([a, b]);
+      i = j;
+      continue;
+    }
+    i += 2;
+  }
+  return out;
+}
+
 function circleInk(lines, e) {
   const v = codes(lines, e, [10, 20, 40]);
   const r = parseFloat(v[40]);
@@ -151,6 +183,30 @@ function circleInk(lines, e) {
 const overlaps = (a, b, pad = 0) =>
   a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
 const shift = (b, dx, dy) => ({ ...b, x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0 + dy, y1: b.y1 + dy });
+const grow = (b, d) => ({ x0: b.x0 - d, x1: b.x1 + d, y0: b.y0 - d, y1: b.y1 + d });
+
+// Whether the segment a-b touches the box (Liang-Barsky).
+function cuts(a, b, box) {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  for (const [p, q] of [[-dx, a.x - box.x0], [dx, box.x1 - a.x], [-dy, a.y - box.y0], [dy, box.y1 - a.y]]) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return false;
+      if (r < t1) t1 = r;
+    }
+  }
+  return true;
+}
 
 // A record's box moved with it, so everything downstream measures it where it
 // now is.
@@ -343,11 +399,13 @@ function declash(lines, ents, blockRanges) {
 
   // Everything a callout must not land on, and the callouts themselves.
   const fixed = [];
+  const dimLines = [];
   for (const e of ents) {
     if (e.type === "DIMENSION" && e.dimBlock) {
       const r = blockRanges.get(e.dimBlock.trim());
       const ink = r && dimInk(lines, r);
       if (ink) fixed.push({ box: ink, what: "dimension" });
+      if (r) dimLines.push(...dimStrokes(lines, r));
     } else if (e.type === "CIRCLE" && /^Axis Circle/.test(e.layer)) {
       const ink = circleInk(lines, e);
       if (ink) fixed.push({ box: ink, what: "grid bubble" });
@@ -406,14 +464,47 @@ function declash(lines, ents, blockRanges) {
     c.free = true;
   }
 
-  const clashWith = (box, self) => {
+  // Every leader's runs, kept current as callouts move and drag theirs.
+  const runsOf = new Map();
+  const segments = (vs) => vs.slice(1).map((v, k) => [vs[k], v]);
+  for (const l of leaders) runsOf.set(l, segments(vertices(lines, l)));
+  // The leader a callout would have after moving by dx, dy: from its second
+  // vertex on it follows, the end on the bar staying put. On a square leader
+  // only the underline's far end slides along, so the leg stays straight.
+  const leaderAfter = (c, dx, dy) => {
+    const vs = vertices(lines, c.leader);
+    const run = c.barAtStart ? vs : vs.slice().reverse();
+    return run.map((v, k) => {
+      if (k === 0) return { x: v.x, y: v.y };
+      const slide = !c.square || k === run.length - 1 ? dx : 0;
+      return { x: v.x + slide, y: v.y + dy };
+    });
+  };
+
+  // What a callout's text lands on: other text, or else a dimension's lines
+  // or a leader that is not its own.
+  const textUnder = (box, self) => {
     for (const o of fixed) if (overlaps(box, o.box, CLASH_GAP)) return o.what;
     for (const o of callouts) if (o !== self && overlaps(box, o.box, CLASH_GAP)) return o.text;
     return null;
   };
+  const lineUnder = (box, self) => {
+    if (dimLines.some(([a, b]) => cuts(a, b, box))) return "a dimension line";
+    for (const [l, runs] of runsOf) if (l !== self.leader && runs.some(([a, b]) => cuts(a, b, box))) return "a leader";
+    return null;
+  };
+  // What a callout's own leader runs through.
+  const leaderCrosses = (path, self, pad) => {
+    const segs = segments(path);
+    for (const o of fixed) if (segs.some(([a, b]) => cuts(a, b, grow(o.box, pad)))) return o.what;
+    for (const o of callouts) if (o !== self && segs.some(([a, b]) => cuts(a, b, grow(o.box, pad)))) return o.text;
+    return null;
+  };
   // Clear means ROW_GAP from every other text, off the beam by FACE_CLEAR, and
-  // still on this beam's own ground.
-  const clear = (box, self) => {
+  // still on this beam's own ground; then, as far as the tier asks, its text
+  // kept tier.lines from every line not its own and the leader it drags along
+  // kept tier.leader from any other text. A null skips that test.
+  const clear = (box, self, dx, dy, near, tier) => {
     if (box.x0 < lonX0 || box.x1 > lonX1) return false;
     if (self.square && (self.leftOfElbow ? box.x1 > self.elbowX : box.x0 < self.elbowX)) return false;
     const f = facesOver(lines, faces, box.x0, box.x1);
@@ -423,11 +514,29 @@ function declash(lines, ents, blockRanges) {
     }
     for (const o of fixed) if (overlaps(box, o.box, ROW_GAP)) return false;
     for (const o of callouts) if (o !== self && overlaps(box, o.box, ROW_GAP)) return false;
-    return true;
+    if (tier.lines !== null) {
+      const room = grow(box, tier.lines);
+      if (near.some(([a, b]) => cuts(a, b, room))) return false;
+    }
+    return tier.leader === null || !leaderCrosses(leaderAfter(self, dx, dy), self, tier.leader);
   };
+  // The engineer's clearances first. Where the engineer made room by deleting
+  // a short dimension -- 1st-BIG's 450/500 chain under BEAM 1 -- there is
+  // none, so next a spot no line runs through and no text sits on its leader.
+  // Last, a callout on other text takes the nearest spot clear of text alone:
+  // a square leader's leg cannot step aside, and text on text cannot be read
+  // at all. Keeping the leader off text but not the text off lines was tried
+  // in between and is worse: it slid 1st-BIG's 2Y16-5 1.3m into the 450/500
+  // chain.
+  const TIERS = [
+    { lines: LINE_CLEAR, leader: LINE_CLEAR },
+    { lines: 0, leader: 0 },
+    { lines: null, leader: null, onTextOnly: true },
+  ];
 
   const moved = [];
   const stuck = [];
+  const crossing = [];
   // Nearest the beam first: the row next to the face is settled before the
   // ones hanging off it.
   const order = callouts
@@ -440,32 +549,43 @@ function declash(lines, ents, blockRanges) {
       return da - db;
     });
   for (const c of order) {
-    const hit = clashWith(c.box, c);
+    const onText = textUnder(c.box, c);
+    const across = leaderCrosses(leaderAfter(c, 0, 0), c, 0);
+    const hit = onText || lineUnder(c.box, c) || (across && `its leader across ${across}`);
     if (!hit) continue;
     const toward = c.side === "below" ? 1 : -1;
-    const best = offsetsToward(toward).find((o) => clear(shift(c.box, o.dx, o.dy), c)) || null;
+    // The lines within reach of any spot it could move to.
+    const reach = grow(c.box, Math.max(MAX_ALONG, MAX_ACROSS) + LINE_CLEAR);
+    const near = dimLines.filter(([a, b]) => cuts(a, b, reach));
+    for (const [l, runs] of runsOf) if (l !== c.leader) near.push(...runs.filter(([a, b]) => cuts(a, b, reach)));
+    let best = null;
+    let tier = null;
+    for (tier of TIERS) {
+      if (tier.onTextOnly && !onText) break;
+      best = offsetsToward(toward).find((o) => clear(shift(c.box, o.dx, o.dy), c, o.dx, o.dy, near, tier));
+      if (best) break;
+    }
     if (!best) {
       stuck.push(`${c.text} on ${hit}`);
       continue;
     }
     const { dx, dy } = best;
+    const path = leaderAfter(c, dx, dy);
+    if (tier.leader === null) {
+      const through = leaderCrosses(path, c, 0);
+      if (through) crossing.push(`${c.text} across ${through}`);
+    }
     translateRange(lines, c.e.start, c.e.end, "TEXT", dx, dy);
     moveRecord(c.e, dx, dy);
     c.box = shift(c.box, dx, dy);
-    // The leader follows from its second vertex on; the end on the bar stays.
-    // On a square leader only the underline's far end slides with the
-    // callout, so the leg off the bar stays straight.
     const vs = vertices(lines, c.leader);
     const run = c.barAtStart ? vs : vs.slice().reverse();
-    run.forEach((v, k) => {
-      if (k === 0) return;
-      const slide = !c.square || k === run.length - 1 ? dx : 0;
-      setVertex(lines, v, v.x + slide, v.y + dy);
-    });
+    run.forEach((v, k) => setVertex(lines, v, path[k].x, path[k].y));
     reboxPolyline(lines, c.leader);
+    runsOf.set(c.leader, segments(vertices(lines, c.leader)));
     moved.push(`${c.text} off ${hit}`);
   }
-  return { moved, stuck };
+  return { moved, stuck, crossing };
 }
 
 export { reseatArrows, declash, textInk, ROW_GAP, FACE_CLEAR };
