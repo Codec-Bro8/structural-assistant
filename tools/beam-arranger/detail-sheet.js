@@ -54,7 +54,7 @@ import {
   ACROSS_OFFSET,
 } from "./plan-marks.js";
 import { buildBeamMarkTextEntity } from "./build-entity.js";
-import { ensureLayer, findLayer, resolveTextStyle } from "./tables.js";
+import { completeTables, ensureLayer, findLayer, resolveTextStyle } from "./tables.js";
 
 
 // --- frame, measured off the engineer's own sheet -------------------------
@@ -1736,6 +1736,9 @@ function buildDetailSheet(options) {
   const xsecDimLayerRes = xsecDimMoved
     ? ensureLayer(lines, xsecDimLayer, XSEC_DIM_COLOR, hx)
     : { created: false };
+  // Then whatever the drawing itself left undefined, so the file opens in
+  // AutoCAD and not only in a viewer. See completeTables in tables.js.
+  const completed = completeTables(lines, hx);
   bumpHandSeed(lines, nextHandle);
 
   // --- report ---
@@ -1843,6 +1846,17 @@ function buildDetailSheet(options) {
       "no beam plan found to sit the sheet under -- left at the engineer's own sheet coordinates",
     );
   if (layerRes.created) log(`  created layer "${frameLayer}"`);
+  if (completed.handles.size)
+    log(
+      `  ${[...completed.handles.values()].reduce((a, b) => a + b, 0)} entit(ies) given the handle the drawing left empty (` +
+        [...completed.handles].map(([t, n]) => `${n} ${t}`).join(", ") + ").",
+    );
+  if (completed.layers.length + completed.styles.length + completed.linetypes.length)
+    log(
+      `  defined what the drawing names but never defines, so AutoCAD will open it: ` +
+        `${completed.layers.length} layer(s), ${completed.styles.length} text style(s), ` +
+        `${completed.linetypes.length} linetype(s)${completed.linetypes.length ? ` (${completed.linetypes.join(", ")})` : ""}.`,
+    );
   log(`  ${ctx.movedBlocks.size} dimension blocks moved with their dimensions.`);
   log(
     `  ${calloutTally.moved} callout(s) moved clear of what they landed on (${calloutTally.slid} with their arrow slid along the bar, ${calloutTally.flipped} flipped across their leg), ${calloutTally.stuck} left where no clear spot was in reach; ` +

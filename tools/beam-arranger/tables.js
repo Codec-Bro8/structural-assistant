@@ -138,6 +138,12 @@ function ensureLayer(lines, name, color, allocHandle) {
   if (ptr.plotStyle) push(390, ptr.plotStyle);
   if (ptr.material) push(347, ptr.material);
 
+  appendRecord(lines, table, L);
+  return { created: true, handle, name };
+}
+
+// Puts a record at the end of its table.
+function appendRecord(lines, table, L) {
   lines.splice(table.endtab, 0, ...L);
 
   // The table header's 70 is an advisory max-entry count; keep it honest.
@@ -147,7 +153,174 @@ function ensureLayer(lines, name, color, allocHandle) {
       lines[table.maxCountLine] = String(cur + 1).padStart(6, " ");
     }
   }
-  return { created: true, handle, name };
+}
+
+// A record's own fields, every occurrence of each code, in order.
+function recordFields(lines, start) {
+  const out = [];
+  for (let k = start + 2; k < lines.length - 1; k += 2) {
+    if (lines[k].trim() === "0") break;
+    out.push([lines[k].trim(), lines[k + 1]]);
+  }
+  return out;
+}
+
+function pusher(L) {
+  return (c, v) => {
+    L.push(codeLine(c));
+    L.push(String(v));
+  };
+}
+
+// Ensures a text style exists, creating it if absent. It takes its font from
+// the drawing's own Standard style, or its first, so it reads like the rest,
+// and fixes no height: every text carries its own.
+function ensureTextStyle(lines, name, allocHandle) {
+  const table = readTable(lines, "STYLE");
+  if (!table) throw new Error("No STYLE table found in file.");
+  const existing = findEntry(table, name);
+  if (existing !== null) return { created: false, name: existing };
+  if (table.endtab === -1)
+    throw new Error("STYLE table has no ENDTAB — refusing to edit.");
+
+  const tplName = findEntry(table, "Standard") || table.names.keys().next().value;
+  const tpl = new Map();
+  if (tplName !== undefined)
+    for (const [c, v] of recordFields(lines, table.names.get(tplName)))
+      if (!tpl.has(c)) tpl.set(c, v);
+
+  const L = [];
+  const push = pusher(L);
+  push(0, "STYLE");
+  push(5, allocHandle());
+  push(330, table.tableHandle);
+  push(100, "AcDbSymbolTableRecord");
+  push(100, "AcDbTextStyleTableRecord");
+  push(2, name);
+  push(70, 0);
+  push(40, 0); // no fixed height
+  push(41, (tpl.get("41") || "1").trim());
+  push(50, 0);
+  push(71, 0);
+  push(42, (tpl.get("42") || "2.5").trim());
+  push(3, (tpl.get("3") || "txt").trim());
+  push(4, (tpl.get("4") || "").trim());
+  appendRecord(lines, table, L);
+  return { created: true, name };
+}
+
+// Ensures a linetype exists, creating it if absent. acad.lin draws NAME2 at
+// half the size of NAME, so where the drawing has the half-size one the
+// pattern is that at twice the length: Prota's 2021 export names HIDDEN on
+// its hidden column lines and defines only HIDDEN2. With nothing to go on the
+// line is drawn continuous.
+function ensureLinetype(lines, name, allocHandle) {
+  const table = readTable(lines, "LTYPE");
+  if (!table) throw new Error("No LTYPE table found in file.");
+  const existing = findEntry(table, name);
+  if (existing !== null) return { created: false, name: existing };
+  if (table.endtab === -1)
+    throw new Error("LTYPE table has no ENDTAB — refusing to edit.");
+
+  const half = findEntry(table, `${name}2`);
+  const dashes = half
+    ? recordFields(lines, table.names.get(half))
+        .filter(([c]) => c === "49")
+        .map(([, v]) => 2 * parseFloat(v))
+    : [];
+
+  const L = [];
+  const push = pusher(L);
+  push(0, "LTYPE");
+  push(5, allocHandle());
+  push(330, table.tableHandle);
+  push(100, "AcDbSymbolTableRecord");
+  push(100, "AcDbLinetypeTableRecord");
+  push(2, name);
+  push(70, 0);
+  push(3, "");
+  push(72, 65);
+  push(73, dashes.length);
+  push(40, dashes.reduce((a, d) => a + Math.abs(d), 0));
+  for (const d of dashes) {
+    push(49, d);
+    push(74, 0);
+  }
+  appendRecord(lines, table, L);
+  return { created: true, name, dashed: dashes.length > 0 };
+}
+
+// Makes a drawing say everything AutoCAD needs it to say about itself.
+//
+// Prota's 2021 export, written through VectorDraw, leaves AutoCAD four things
+// to work out that no drawing which has opened there ever did. The AGUNGI full
+// export has 979 hatches with an empty handle, and 40 layers, 17 text styles
+// and a linetype that entities name and no record defines. A lenient viewer draws it anyway;
+// AutoCAD will not open it, and does not say why. So every empty handle is
+// given one, and every name an entity uses gets its record:
+// - a layer in the colour most of its own entities carry, or white;
+// - a text style in the drawing's own Standard font;
+// - a linetype as above.
+// A drawing that already says all of it is left exactly as it was.
+const TEXT_TYPES = new Set(["TEXT", "MTEXT", "ATTRIB", "ATTDEF"]);
+const LINETYPE_KEYWORDS = new Set(["bylayer", "byblock"]);
+
+function completeTables(lines, allocHandle) {
+  const colours = new Map(); // layer -> Map(colour -> count)
+  const styles = new Set();
+  const linetypes = new Set();
+  const handles = new Map(); // entity type -> count given one
+
+  let sec = null;
+  let type = null;
+  let seen = null;
+  let layer = null;
+  let colour = null;
+  const close = () => {
+    if (!layer) return;
+    if (!colours.has(layer)) colours.set(layer, new Map());
+    if (colour !== null) {
+      const m = colours.get(layer);
+      m.set(colour, (m.get(colour) || 0) + 1);
+    }
+  };
+  for (let i = 0; i < lines.length - 1; i += 2) {
+    const c = lines[i].trim();
+    const v = lines[i + 1].trim();
+    if (c === "0" && v === "SECTION") { close(); sec = "?"; type = null; layer = null; continue; }
+    if (c === "2" && sec === "?") { sec = v; continue; }
+    if (c === "0" && v === "ENDSEC") { close(); sec = null; type = null; layer = null; continue; }
+    if (sec !== "ENTITIES" && sec !== "BLOCKS") continue;
+    if (c === "0") { close(); type = v; seen = new Set(); layer = null; colour = null; continue; }
+    // A record's own field comes first; a later one with the same code
+    // belongs to something embedded in it.
+    if (!seen || seen.has(c)) continue;
+    seen.add(c);
+    if (c === "5" && v === "") {
+      lines[i + 1] = allocHandle();
+      handles.set(type, (handles.get(type) || 0) + 1);
+    } else if (c === "8") layer = v;
+    else if (c === "62") {
+      const n = parseInt(v, 10);
+      if (n >= 1 && n <= 255) colour = n;
+    } else if (c === "6" && v && !LINETYPE_KEYWORDS.has(v.toLowerCase())) linetypes.add(v);
+    else if (c === "7" && v && TEXT_TYPES.has(type)) styles.add(v);
+  }
+  close();
+
+  const made = { handles, layers: [], styles: [], linetypes: [] };
+  for (const [name, counts] of colours) {
+    const commonest = [...counts].sort((a, b) => b[1] - a[1])[0];
+    if (ensureLayer(lines, name, commonest ? commonest[0] : 7, allocHandle).created)
+      made.layers.push(name);
+  }
+  for (const name of styles)
+    if (ensureTextStyle(lines, name, allocHandle).created) made.styles.push(name);
+  for (const name of linetypes) {
+    const r = ensureLinetype(lines, name, allocHandle);
+    if (r.created) made.linetypes.push(r.dashed ? name : `${name} (continuous)`);
+  }
+  return made;
 }
 
 // Picks a text style that exists in this file, trying each preference in turn.
@@ -162,4 +335,12 @@ function resolveTextStyle(lines, preferences) {
   return match("Standard") || "Standard";
 }
 
-export { readTable, ensureLayer, resolveTextStyle, findLayer };
+export {
+  readTable,
+  ensureLayer,
+  ensureTextStyle,
+  ensureLinetype,
+  completeTables,
+  resolveTextStyle,
+  findLayer,
+};

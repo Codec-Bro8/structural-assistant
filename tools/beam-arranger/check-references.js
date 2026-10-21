@@ -12,6 +12,11 @@
 // previewed perfectly and would not open. Nothing in the pipeline can catch
 // that by looking at its own state; it has to be read back off the output.
 //
+// A linetype is a reference too, and so, in a way, is a handle: an entity
+// whose handle is left empty has nothing for anything else to point at.
+// Prota's 2021 export does both -- 979 hatches with no handle, and HIDDEN
+// named where only HIDDEN2 is defined -- and AutoCAD will not open it.
+//
 // It also checks the one LAYER record AutoCAD has a rule about: Defpoints
 // must carry the plot flag saying it does not plot, or the drawing is
 // discarded. Both faults were in the same file and only one of them was
@@ -34,12 +39,15 @@ const REFS = [
   { code: "7", table: "STYLE", label: "text style", types: ["TEXT", "MTEXT", "ATTRIB", "ATTDEF"] },
   { code: "3", table: "DIMSTYLE", label: "dimension style", types: ["DIMENSION", "LEADER", "TOLERANCE"] },
   { code: "2", table: "BLOCK", label: "block", types: ["INSERT", "DIMENSION"] },
+  { code: "6", table: "LTYPE", label: "linetype", types: null },
 ];
 
 // Symbol table names are case-insensitive to AutoCAD, so a reference to
 // "defpoints" is satisfied by a record spelled "Defpoints".
 function readNames(lines) {
   const tables = new Map(REFS.map((r) => [r.table, new Set()]));
+  // Not records: an entity drawn in its layer's or its block's linetype.
+  tables.get("LTYPE").add("bylayer").add("byblock");
   let sec = null;
   let tableName = null;
   let type = null;
@@ -73,6 +81,7 @@ function readNames(lines) {
 // styles exactly as loose entities do, and a dangling one there is just as fatal.
 function findDangling(lines, tables) {
   const missing = new Map(); // "layer \"X\"" -> count
+  let emptyHandles = 0;
   let sec = null;
   let type = null;
   let fields = null;
@@ -101,10 +110,13 @@ function findDangling(lines, tables) {
     if (c === "0") { check(); type = v; fields = new Map(); continue; }
     // First occurrence only: an entity's own field comes before any embedded
     // object or XDATA that might reuse the code for something else.
-    if (fields && !fields.has(c)) fields.set(c, v);
+    if (fields && !fields.has(c)) {
+      fields.set(c, v);
+      if (c === "5" && v === "") emptyHandles++;
+    }
   }
   check();
-  return missing;
+  return { missing, emptyHandles };
 }
 
 const ROOT = path.join(__dirname, "..", "..");
@@ -148,7 +160,7 @@ function checkDefpoints(lines) {
 
 const { lines } = readLines(SRC);
 const tables = readNames(lines);
-const missing = findDangling(lines, tables);
+const { missing, emptyHandles } = findDangling(lines, tables);
 const defpoints = checkDefpoints(lines);
 
 console.log(
@@ -159,8 +171,12 @@ console.log(
 if (defpoints)
   console.log(`  Defpoints: ${defpoints} -- AutoCAD discards the drawing.`);
 
-if (missing.size === 0 && !defpoints) {
-  console.log("  every layer, style and block an entity names is defined.");
+if (emptyHandles)
+  console.log(`  ${emptyHandles} entit${emptyHandles === 1 ? "y has" : "ies have"} an empty handle -- AutoCAD will not open it.`);
+
+if (missing.size === 0 && !defpoints && !emptyHandles) {
+  console.log("  every layer, style, linetype and block an entity names is defined,");
+  console.log("  and every entity has a handle.");
   console.log("  Defpoints, if present, is marked non-plotting.");
   process.exit(0);
 }

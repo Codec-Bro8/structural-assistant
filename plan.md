@@ -964,6 +964,47 @@ proves only that six files share a habit. Every assumption here — that the
 layer exists, that a record we write is complete — survived six floors because
 all six came out of the same program. The first file that did not broke both.
 
+### A Prota 2021 export names what it never defines
+
+Neither AGUNGI export opens in AutoCAD 2022, and neither does anything the
+arranger makes from them. AutoCAD gives no message. CadCraft opens them, and so
+does the preview. `AC1024` is the 2010 format, which AutoCAD 2022 reads, so the
+version is not it.
+
+They are raw VectorDraw output from Prota 2021. Every drawing that has opened in
+AutoCAD was either saved through AutoCAD (the six floors, `GRD`) or, like the
+roof set, at least defined everything it used. Both exports leave four things
+undone that none of those does:
+
+| | full export | raft |
+|---|---|---|
+| hatches with an empty handle | 979 | 283 |
+| layers named, no record | 40 | 39 |
+| text styles named, no record | 17 | 18 |
+| linetypes named, no record | 1 (`HIDDEN`, on 4 hidden column lines; only `HIDDEN2` is defined) | 0 |
+
+Nothing else differs that could matter. Every pointer resolves, every handle is
+unique, every number parses, and the file is plain ASCII with CRLF throughout.
+
+So every run now finishes by **completing the drawing** (`completeTables` in
+`tables.js`):
+- every empty handle is given one;
+- a missing layer gets a full record, in the colour most of its own entities
+  carry, or white;
+- a missing text style copies the drawing's Standard font, with no fixed height;
+- a missing linetype takes the drawing's half-size one at twice the length,
+  as `acad.lin` defines `HIDDEN` against `HIDDEN2`, or is drawn continuous.
+
+A drawing that already says everything gets nothing: the nine others come out
+byte for byte the same. `check-references.js` now also checks linetypes and
+empty handles, and fails both AGUNGI sources on all four counts.
+
+**Confirmed in AutoCAD 2022** (2026-10-21): the arranged full export opens,
+and so does Prota's export with only its gaps filled and nothing arranged. So
+these four were what stopped it. What it did not mind: a BLOCK_RECORD table
+that declares 6 records and holds 713, and three INSERTs followed by a SEQEND
+with no attributes.
+
 ### Dimensions have moved layer between exports
 
 The detail dimensions have arrived on three different layers across exports of
@@ -1086,10 +1127,9 @@ Every drawing in `examples/`, all storeys, one run each (2026-10-21):
 | `prota-beams-full` (AGUNGI, all four storeys, outside `examples/`) | 214 | 104 | 104 | 8 | 26 | 631 | 16 |
 
 On every one the leftover audit is **0**, and no part is moved twice.
-`check-references.js` passes on all but the two AGUNGI exports, which fail
-only on layers and styles their own sources name without defining
-(`Column Size Label`, `Axis Line(Dir 1)` and others). None of them is one the
-arranger writes.
+`check-references.js` passes on all of them. The two AGUNGI exports pass only
+because the run completes what Prota left undefined (see "A Prota 2021 export
+names what it never defines"); their sources still fail it.
 
 The AGUNGI full export is `ProtaData2021\AGUNGI\ExportedDrawings\prota-beams-full.dxf`:
 the foundation beams and storeys 1-3 in one file. Its 16 warnings are all cut
@@ -1158,14 +1198,14 @@ those runs.
 | `reconcile-beams.js` | regroups those beams where Prota's details group the spans differently |
 | `grid-ties.js` | ties a detail with no span title to its beam, by grid names, bar order and bubble count |
 | `build-entity.js` | builds the DXF text entity for a beam mark |
-| `tables.js` | makes sure layers and text styles exist before use |
+| `tables.js` | makes sure layers and text styles exist before use, and completes a drawing that names what it never defines |
 | `layout-details.js` | detail sheet arrangement |
 | `cut-marks.js` | pulls each section cut in to the beam faces and clear of the annotation |
 | `callouts.js` | puts side-bar arrows one per side bar, and moves callouts off other text and lines |
 | `plan-marks.js` | one mark per merged beam on the plan, and the rule for nudging two apart |
 | `dxf-scene.js` | turns a DXF into drawing primitives, for the preview only |
 | `dxf-scene-cli.js` | the command line for that |
-| `check-references.js` | reads an output back and fails it if a layer, style or block it names has no record, or if Defpoints would plot |
+| `check-references.js` | reads an output back and fails it if a layer, style, linetype or block it names has no record, an entity has no handle, or Defpoints would plot |
 
 ## The web front end
 
