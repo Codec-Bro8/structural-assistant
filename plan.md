@@ -437,6 +437,31 @@ Any size test that is added later must read group code 42, the measured value,
 not code 1. Prota overrides the displayed text: a dimension reading "450"
 measures 404 to 460, and one reading "1800" measures 1759.
 
+### Callouts are tidied where they stand
+
+`callouts.js` works on each elevation right after it is split from its section
+and before it is measured for its row, so the row is sized for the callouts as
+they end up. It is the brief's R2. It never touches the strip: the clashes
+there are the section dimensions' (R4 and R5), and the engineer fixed those by
+moving the dimensions, not the callouts.
+
+**Side-bar arrows.** Prota stacks a multi-arrow leader's arrows away from the
+bars instead of down them. On GRD's FB82 the four arrows of 2x4Y12-165 stand at
+the top side bar, the top face, empty air and the dimension line above. The
+engineer's ground floor has one arrow per side bar, so that is what they get:
+- side bars are the straight two-vertex bars at least 120mm clear of both
+  faces, on either bar layer (the raft draws them on `Top Rebar Line`), read at
+  the leader's x because a haunched beam's bars slope;
+- arrows and bars pair off in order from the label end;
+- where the counts differ, the arrow already on a side bar nearest the label
+  anchors the run, which is Prota's own pattern;
+- a leader whose arrows already sit on bars is left alone.
+
+Multi-arrow leaders with arrows off their bars: GRD 39 → 6, `grd-floor-halo`
+45 → 15, raft 24 → 0. The leftovers are in the strip or in unplaced beams. The
+arrows Prota stacked past the face also stood in the cut marks' way: 14 cut
+marks on those three drawings each have one overlap fewer.
+
 ### A beam can be cut more than once
 
 A beam that changes depth part way along, or is cut twice for any other reason,
@@ -855,6 +880,7 @@ those runs.
 | `tables.js` | makes sure layers and text styles exist before use |
 | `layout-details.js` | detail sheet arrangement |
 | `cut-marks.js` | pulls each section cut in to the beam faces and clear of the annotation |
+| `callouts.js` | puts side-bar arrows one per side bar |
 | `plan-marks.js` | one mark per merged beam on the plan, and the rule for nudging two apart |
 | `dxf-scene.js` | turns a DXF into drawing primitives, for the preview only |
 | `dxf-scene-cli.js` | the command line for that |

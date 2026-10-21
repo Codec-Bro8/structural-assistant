@@ -36,6 +36,7 @@ import {
   translateBlock,
 } from "./layout-details.js";
 import { cutEntities, reshapeCuts } from "./cut-marks.js";
+import { reseatArrows } from "./callouts.js";
 import {
   MARK_LAYER,
   MARK_COLOR,
@@ -935,6 +936,7 @@ function buildDetailSheet(options) {
   }
   const unsureKeys = new Set(gridTies.unsure.map((u) => u.beam.key));
   const jobs = [];
+  const calloutTally = { arrows: 0 };
   for (const storey of STOREYS) {
     const wanted = beams
       .filter((b) => b.storey === storey && b.num >= FIRST && b.num <= LAST)
@@ -961,6 +963,15 @@ function buildDetailSheet(options) {
         continue;
       }
       const s = splitDetail(zs[0], raw);
+      // The callouts are tidied where they stand, before the elevation is
+      // measured for the layout, so the row it lands in is sized for them
+      // as they end up. See callouts.js.
+      const arrows = reseatArrows(lines, s.lon);
+      calloutTally.arrows += arrows.reseated;
+      if (arrows.refused.length)
+        notes.push(
+          `storey ${storey} BEAM ${n}: side-bar arrows left as Prota drew them (${arrows.refused.join("; ")}) -- the count does not match`,
+        );
       const lonBox = box(s.lon.filter((e) => !e.empty));
       const elevBox = box(s.lon.filter((e) => ELEVATION_LAYERS.has(e.layer)));
       if (!lonBox || !elevBox) {
@@ -1615,6 +1626,7 @@ function buildDetailSheet(options) {
     );
   if (layerRes.created) log(`  created layer "${frameLayer}"`);
   log(`  ${ctx.movedBlocks.size} dimension blocks moved with their dimensions.`);
+  log(`  ${calloutTally.arrows} side-bar leader(s) given one arrow per side bar.`);
   if (ctx.sharedBlocks.size)
     log(
       `  WARNING: ${ctx.sharedBlocks.size} dimension block(s) referenced twice, moved once only: ${[...ctx.sharedBlocks].join(", ")}`,
