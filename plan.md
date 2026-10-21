@@ -1079,6 +1079,13 @@ because the pipeline is string-and-number work with no filesystem in it, and it
 is what makes the front end a static site — it deploys anywhere that can serve
 files, with no upload limit and no request to time out.
 
+**The page carries two versions.** `/` runs v1: a frozen copy of these modules
+as they stood at `d8d6d23`, before the callouts were tidied, kept in
+`web/src/arranger-v1/`. `/v2` runs the modules here, and a **Try v2** button
+switches between them on the same drawing. The copy is what lets the rules here
+keep changing without moving the default page. It is deleted when v2 becomes
+the default.
+
 Two things about it shaped the pipeline, and are the reason it needed any
 change at all:
 

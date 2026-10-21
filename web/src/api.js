@@ -8,8 +8,15 @@
 // One worker per run. It holds the drawing it produced so the viewer can ask
 // for either side of it without running again, and starting another run
 // terminates it, which is also the only way to abandon a run in flight.
+//
+// Which arranger the worker carries is the run's `version`: v1 is the default
+// page, v2 the one at /v2. Vite builds each worker as its own chunk, and only
+// the one a run asks for is ever fetched.
 
-import ArrangerWorker from "./worker/arranger.worker.js?worker";
+import V1Worker from "./worker/v1.worker.js?worker";
+import V2Worker from "./worker/v2.worker.js?worker";
+
+const WORKERS = { v1: V1Worker, v2: V2Worker };
 
 let current = null; // { worker, id, url, pending, seq }
 
@@ -24,8 +31,8 @@ function terminate() {
   current = null;
 }
 
-function spawn() {
-  const worker = new ArrangerWorker();
+function spawn(version) {
+  const worker = new WORKERS[version]();
   const held = { worker, id: crypto.randomUUID(), url: null, pending: new Map(), seq: 0 };
   worker.onmessage = (e) => {
     const { id, ...payload } = e.data;
@@ -81,9 +88,10 @@ export async function listExamples() {
 
 /**
  * Runs the arranger. Pass either a File or the name of a drawing in
- * examples/; `scope` may carry storey, first and last.
+ * examples/; `scope` may carry storey, first and last, and `version` is
+ * "v1" or "v2".
  */
-export async function run({ file, example, scope = {} }, signal) {
+export async function run({ file, example, scope = {}, version = "v1" }, signal) {
   terminate();
 
   const source = example
@@ -94,7 +102,7 @@ export async function run({ file, example, scope = {} }, signal) {
     : await file.text();
   if (signal?.aborted) throw abortError();
 
-  const held = spawn();
+  const held = spawn(version);
   current = held;
 
   const began = performance.now();
@@ -113,7 +121,7 @@ export async function run({ file, example, scope = {} }, signal) {
   const elapsed = performance.now() - began;
 
   if (!result.ok)
-    return { id: held.id, ok: false, label: example || file.name, log: result.log, error: result.error, elapsed };
+    return { id: held.id, ok: false, version, label: example || file.name, log: result.log, error: result.error, elapsed };
 
   held.url = URL.createObjectURL(
     new Blob([result.bytes], { type: "application/dxf" }),
@@ -122,13 +130,17 @@ export async function run({ file, example, scope = {} }, signal) {
   return {
     id: held.id,
     ok: true,
+    version,
     label: example || file.name,
     log: result.log,
     report: result.report,
     elapsed,
     bytes: result.size,
     download: held.url,
-    downloadName: result.outName,
+    // Named for its version, so a v1 and a v2 of the same drawing can sit in
+    // one downloads folder and be told apart. The bytes are the arranger's.
+    downloadName:
+      version === "v1" ? result.outName : result.outName.replace(/[.]dxf$/i, "." + version + ".dxf"),
   };
 }
 

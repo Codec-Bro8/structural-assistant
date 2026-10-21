@@ -10,9 +10,12 @@
 // second or two and holds a few hundred megabytes while it is in flight, and
 // neither belongs on the thread that is drawing the page. The window stays
 // responsive and the run can be abandoned by terminating the worker.
+//
+// The page carries two arrangers: v1, a frozen copy of the pipeline, at /, and
+// the live one at /v2 (see arranger-v1/README.md). Each has a worker of its
+// own, v1.worker.js and v2.worker.js, which hands its pipeline to serve(). They
+// differ in nothing else.
 
-import { splitLines, joinLines } from "@arranger/dxf-io.js";
-import { buildDetailSheet } from "@arranger/detail-sheet.js";
 import { sceneFromText } from "@arranger/dxf-scene.js";
 
 import { readReport, readableError } from "../report.js";
@@ -30,7 +33,7 @@ function looksLikeDxf(text) {
   return /\bSECTION\b/.test(head);
 }
 
-function run({ text, name, scope }) {
+function run({ splitLines, joinLines, buildDetailSheet }, { text, name, scope }) {
   if (!text.length) throw new Error("that file is empty");
   if (!looksLikeDxf(text))
     throw new Error("that does not look like an ASCII DXF file");
@@ -75,7 +78,7 @@ function run({ text, name, scope }) {
   };
 }
 
-function scene({ side }) {
+function scene(pipeline, { side }) {
   if (!held) throw new Error("this run is no longer in memory -- run it again");
   const built = sceneFromText(side === "in" ? held.inText : held.outText);
   // The arranged sheet is a small part of a large drawing, so the viewer opens
@@ -86,12 +89,14 @@ function scene({ side }) {
 
 const HANDLERS = { run, scene };
 
-self.onmessage = (e) => {
-  const { id, type, ...rest } = e.data;
-  try {
-    const { transfer, ...payload } = HANDLERS[type](rest);
-    self.postMessage({ id, ...payload }, transfer || []);
-  } catch (err) {
-    self.postMessage({ id, ok: false, error: err.message, log: err.stack || "" });
-  }
-};
+export function serve(pipeline) {
+  self.onmessage = (e) => {
+    const { id, type, ...rest } = e.data;
+    try {
+      const { transfer, ...payload } = HANDLERS[type](pipeline, rest);
+      self.postMessage({ id, ...payload }, transfer || []);
+    } catch (err) {
+      self.postMessage({ id, ok: false, error: err.message, log: err.stack || "" });
+    }
+  };
+}

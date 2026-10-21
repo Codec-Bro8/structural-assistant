@@ -26,6 +26,21 @@ pnpm preview   # look at that build before deploying it
    full report behind one click.
 4. It draws the result, and gives you the file to download.
 
+## Two versions
+
+The page opens on **v1**, at `/`. **v2**, at `/v2`, is the arranger as it now
+stands, with the callouts tidied: side-bar arrows one per bar, callouts moved
+clear of other text and of lines, and cut marks kept off callout text. The
+**Try v2** button in the top bar switches between them. It keeps the drawing,
+and if that drawing has been run already, runs it again under the other
+version, so the two can be compared on the same file. Back and forward switch
+too.
+
+v1 is a frozen copy of the pipeline taken just before that work, in
+`src/arranger-v1/`; its README says where from and why it is a copy. Each
+version gives exactly the bytes the command line gave at its commit. A v2 file
+downloads as `NAME.arranged.v2.dxf`, so it can sit beside the v1 one.
+
 The numbers on the page are parsed out of what the run printed, not counted a
 second time, so they cannot disagree with the report underneath them. The
 download is the arranger's own output, byte for byte — the same bytes
@@ -57,11 +72,13 @@ anywhere.
 
 | file | what it does |
 |---|---|
-| `src/worker/arranger.worker.js` | runs the arranger; the whole back end |
+| `src/worker/serve.js` | runs the arranger; the whole back end |
+| `src/worker/v1.worker.js`, `v2.worker.js` | hand `serve.js` the pipeline for each version |
+| `src/arranger-v1/` | the frozen v1 pipeline |
 | `src/api.js` | drives that worker, one per run |
 | `src/report.js` | reads a run's numbers back out of its report |
 | `vite.config.js` | dev server, and the sample drawings it lends the page |
-| `src/App.jsx` | the state of a run, and the layout |
+| `src/App.jsx` | the state of a run, the layout, and which version the path asks for |
 | `src/components/` | sidebar, viewer, stat grid, layer panel, report drawer |
 | `src/viewer/renderer.js` | the canvas: pan, zoom, paint |
 | `src/viewer/scene.js` | shifts coordinates to a local origin and batches by colour |
@@ -69,7 +86,9 @@ anywhere.
 **The pipeline is imported, not duplicated.** `@arranger` is an alias for
 `../tools/beam-arranger`, so the worker imports the same modules the command
 line drives. There is one implementation of the arranger and it has no idea
-which of the two is running it.
+which of the two is running it. The one exception is v1, a copy kept on
+purpose so the default page holds still while v2 moves. It goes when v2
+becomes the default.
 
 That works because the pipeline has no filesystem in it. Everything from
 merging spans to placing cut marks is string-and-number work over the lines of
@@ -107,7 +126,7 @@ not appear. Either way the file goes through the same worker as a dropped one �
 that path is a convenience for loading a file, not a second way of running one.
 
 `?example=NAME` opens the page on one of them, and `&run=1` starts it straight
-away. Both only mean anything in development.
+away, at `/` or `/v2`. Both only mean anything in development.
 
 ## Deploying it
 
@@ -121,7 +140,8 @@ On Vercel, in Project Settings → General:
   itself lives in `tools/beam-arranger`, above this directory
 
 Vite is detected from there; the build command and `dist` need no overriding.
-There is nothing else to configure — no functions, no rewrites, no environment
-variables — and none of the limits that come with them. A 5MB drawing is not an
+`vercel.json` holds the one rewrite, which serves `index.html` at `/v2`; the
+page reads the path itself. There is nothing else to configure — no functions,
+no environment variables — and none of the limits that come with them. A 5MB drawing is not an
 upload, so no request size cap applies to it, and a run is not a request, so
 nothing times out.

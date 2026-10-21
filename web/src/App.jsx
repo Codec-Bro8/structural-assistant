@@ -6,7 +6,14 @@ import Viewer from "./components/Viewer.jsx";
 import ReportDrawer from "./components/ReportDrawer.jsx";
 import Placeholder from "./components/Placeholder.jsx";
 
+// Two arrangers, one page: v1 at /, the default, and v2 at /v2 (see
+// arranger-v1/README.md). The path is the only route there is, so it is read
+// here rather than through a router.
+const versionAt = (path) => (/^\/v2\/?$/.test(path) ? "v2" : "v1");
+const PATHS = { v1: "/", v2: "/v2" };
+
 export default function App() {
+  const [version, setVersion] = useState(() => versionAt(location.pathname));
   const [examples, setExamples] = useState([]);
   const [choice, setChoice] = useState(null); // { file } or { example }
   const [scope, setScope] = useState({ storey: "", first: "", last: "" });
@@ -18,6 +25,17 @@ export default function App() {
   const [side, setSide] = useState("out");
 
   const running = useRef(null);
+
+  // Back and forward move between the two versions as well.
+  useEffect(() => {
+    const back = () => setVersion(versionAt(location.pathname));
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, []);
+
+  useEffect(() => {
+    document.title = version === "v1" ? "Beam arranger" : "Beam arranger " + version;
+  }, [version]);
 
   useEffect(() => {
     api.listExamples().then(setExamples).catch(() => setExamples([]));
@@ -51,7 +69,7 @@ export default function App() {
       setSide("out");
 
       try {
-        const result = await api.run({ ...target, scope }, ctl.signal);
+        const result = await api.run({ ...target, scope, version }, ctl.signal);
         if (ctl.signal.aborted) return;
         if (!result.ok) {
           setJob(result);
@@ -67,8 +85,20 @@ export default function App() {
         setStatus("error");
       }
     },
-    [choice, scope, status],
+    [choice, scope, status, version],
   );
+
+  const switchTo = (next) => {
+    history.pushState(null, "", PATHS[next] + location.search);
+    setVersion(next);
+  };
+
+  // Switching keeps the drawing. A run on the page that the other version
+  // made -- by the button, by Back, or finishing after the switch -- is run
+  // again under this one, so the two can be compared on the same file.
+  useEffect(() => {
+    if (job && job.version !== version && status !== "running" && choice) start();
+  }, [job, version, status, choice, start]);
 
   // Dropping a drawing anywhere on the window picks it, so the target is the
   // whole app rather than a small rectangle that has to be aimed at.
@@ -98,6 +128,7 @@ export default function App() {
         <div className="brand">
           <span className="mark" aria-hidden="true" />
           <span className="name">Beam arranger</span>
+          {version !== "v1" && <span className="version">{version}</span>}
         </div>
 
         <div className="topbar-mid">
@@ -115,6 +146,18 @@ export default function App() {
         </div>
 
         <div className="topbar-actions">
+          <button
+            className="ghost try"
+            onClick={() => switchTo(version === "v1" ? "v2" : "v1")}
+            disabled={status === "running"}
+            title={
+              version === "v1"
+                ? "The next version tidies the callouts: moved clear of text and lines, one arrow per side bar, and cut marks kept off their text"
+                : "Back to the version the page opens on"
+            }
+          >
+            {version === "v1" ? "Try v2" : "Back to v1"}
+          </button>
           {job?.ok && (
             <button className="ghost" onClick={() => setShowReport((v) => !v)}>
               Report
