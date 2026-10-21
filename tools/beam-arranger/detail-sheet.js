@@ -36,7 +36,7 @@ import {
   translateBlock,
 } from "./layout-details.js";
 import { cutEntities, reshapeCuts } from "./cut-marks.js";
-import { reseatArrows } from "./callouts.js";
+import { reseatArrows, declash } from "./callouts.js";
 import {
   MARK_LAYER,
   MARK_COLOR,
@@ -936,7 +936,8 @@ function buildDetailSheet(options) {
   }
   const unsureKeys = new Set(gridTies.unsure.map((u) => u.beam.key));
   const jobs = [];
-  const calloutTally = { arrows: 0 };
+  const blockRanges = collectBlockRanges(lines);
+  const calloutTally = { arrows: 0, moved: 0, stuck: 0 };
   for (const storey of STOREYS) {
     const wanted = beams
       .filter((b) => b.storey === storey && b.num >= FIRST && b.num <= LAST)
@@ -967,10 +968,17 @@ function buildDetailSheet(options) {
       // measured for the layout, so the row it lands in is sized for them
       // as they end up. See callouts.js.
       const arrows = reseatArrows(lines, s.lon);
+      const clashes = declash(lines, s.lon, blockRanges);
       calloutTally.arrows += arrows.reseated;
+      calloutTally.moved += clashes.moved.length;
+      calloutTally.stuck += clashes.stuck.length;
       if (arrows.refused.length)
         notes.push(
           `storey ${storey} BEAM ${n}: side-bar arrows left as Prota drew them (${arrows.refused.join("; ")}) -- the count does not match`,
+        );
+      if (clashes.stuck.length)
+        problems.push(
+          `storey ${storey} BEAM ${n}: ${clashes.stuck.length} callout(s) still land on something, no clear spot within reach -- ${clashes.stuck.join(", ")}`,
         );
       const lonBox = box(s.lon.filter((e) => !e.empty));
       const elevBox = box(s.lon.filter((e) => ELEVATION_LAYERS.has(e.layer)));
@@ -1626,7 +1634,10 @@ function buildDetailSheet(options) {
     );
   if (layerRes.created) log(`  created layer "${frameLayer}"`);
   log(`  ${ctx.movedBlocks.size} dimension blocks moved with their dimensions.`);
-  log(`  ${calloutTally.arrows} side-bar leader(s) given one arrow per side bar.`);
+  log(
+    `  ${calloutTally.moved} callout(s) moved clear of what they landed on, ${calloutTally.stuck} left where no clear spot was in reach; ` +
+      `${calloutTally.arrows} side-bar leader(s) given one arrow per side bar.`,
+  );
   if (ctx.sharedBlocks.size)
     log(
       `  WARNING: ${ctx.sharedBlocks.size} dimension block(s) referenced twice, moved once only: ${[...ctx.sharedBlocks].join(", ")}`,

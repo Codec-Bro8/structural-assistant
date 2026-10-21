@@ -2,7 +2,7 @@
 
 // Tidies the callouts on one beam's elevation, before it moves onto the sheet.
 //
-// Measured off the engineer's own arranged sheets.
+// Two things, both measured off the engineer's own arranged sheets.
 //
 // Side-bar arrows. A deep beam's side bars are called out with one leader and
 // an arrow on every bar it names: "2x3Y12-2" carries three arrows, one on each
@@ -14,13 +14,45 @@
 // so. The engineer's ground floor has the arrows one per side bar, the
 // leader running from the furthest of them to the label, and that is what
 // they are moved to.
+//
+// Clashes. Prota drops callouts where its own layout puts them, and a quarter
+// of them land on something: a link callout, a dimension figure, another bar's
+// callout. The engineer moves one of the pair, the shortest way that clears
+// it -- 2nd-sm's 2Y16-11 rises 116mm toward the soffit, off the link callout
+// under it, and stops 23mm short of the beam and 92mm clear of the link
+// callout. Only a callout on a bent leader moves; one riding a straight
+// extent line (a link run) is pinned, as are dimensions and grid bubbles. The
+// leader follows it from its second vertex on, so the end on the bar stays
+// on the bar.
 
 import { translateRange } from "./dxf-geom.js";
 
+const CALLOUT_LAYERS = new Set(["Rebar Label", "Top Rebar Label", "Link Label"]);
 const LEADER_LAYER = "Leader Line";
 const BAR_LAYERS = new Set(["Rebar Line", "Top Rebar Line"]);
 const FACE_LAYER = "Beam Line(D)";
 
+// Per character, in text heights: "12x1Y10-2-250" at 150 high spans 1176.
+const CHAR_WIDTH = 0.6;
+// Clear space between a moved callout and any other text. The brief's
+// elevation_row_gap; the engineer left 92 under 2Y16-11.
+const ROW_GAP = 80;
+// Nearest a moved callout comes to its own beam face: the engineer left 23.
+const FACE_CLEAR = 20;
+// How far a callout may go looking for clear space. The engineer's largest
+// moves across the six floors were 495 across the beam and 940 along it.
+const MAX_ACROSS = 600;
+const MAX_ALONG = 1500;
+// Across the beam the room is tight: 2Y16-11 has to rise between 105mm, to
+// clear the link callout under it by ROW_GAP, and 120mm, to stay FACE_CLEAR
+// off the soffit. A coarser step misses that window and slides the callout
+// 400mm along the beam instead, which is not what the engineer did.
+const STEP_ACROSS = 5;
+const STEP_ALONG = 25;
+// Two texts closer than this are clashing, not just touching: a 200-high
+// dimension figure inks a little past the box worked out for it, and on
+// grd-floor-halo a callout 16mm off one reads as sitting on it.
+const CLASH_GAP = 30;
 // A bar this close to a face is a main bar, not a side bar: main bars sit at
 // cover, 48mm in on every sample; side bars are 300mm and more from a face.
 const FACE_COVER = 120;
@@ -43,6 +75,82 @@ function vertices(lines, e) {
   }
   return out.filter((v) => v.yi !== undefined);
 }
+
+function codes(lines, e, wanted) {
+  const v = {};
+  for (let i = e.start; i < e.end; i += 2) {
+    const c = parseInt(lines[i].trim(), 10);
+    if (c === 101 || c >= 1000) break;
+    if (wanted.includes(c) && !(c in v)) v[c] = lines[i + 1];
+  }
+  return v;
+}
+
+const plain = (s) =>
+  String(s || "")
+    .replace(/\\[A-Za-z][^;\\]*;/g, "")
+    .replace(/[{}]/g, "")
+    .replace(/%%[A-Za-z]/g, "")
+    .trim();
+
+// A horizontal TEXT's ink, from where AutoCAD draws it and how long it is.
+function textInk(lines, e) {
+  const v = codes(lines, e, [1, 10, 20, 11, 21, 40, 50, 72, 73]);
+  const h = parseFloat(v[40]) || 0;
+  const rot = parseFloat(v[50]) || 0;
+  if (!h || Math.abs(rot) > 1) return null;
+  const j72 = parseInt(v[72] || "0", 10);
+  const j73 = parseInt(v[73] || "0", 10);
+  const justified = (j72 !== 0 || j73 !== 0) && v[11] !== undefined;
+  const ax = parseFloat(justified ? v[11] : v[10]);
+  const ay = parseFloat(justified ? v[21] : v[20]);
+  const w = plain(v[1]).length * h * CHAR_WIDTH;
+  const x0 = j72 === 1 || j72 === 4 ? ax - w / 2 : j72 === 2 ? ax - w : ax;
+  const y0 = j73 === 3 ? ay - h : j73 === 2 || j72 === 4 ? ay - h / 2 : ay;
+  return { x0, x1: x0 + w, y0, y1: y0 + h, h };
+}
+
+// A dimension's figure, from the MTEXT in its own block: Prota writes it in
+// absolute coordinates, at the height and attachment it is drawn with.
+function dimInk(lines, blockRange) {
+  let i = blockRange.start;
+  while (i < blockRange.end - 1) {
+    if (lines[i].trim() === "0" && (lines[i + 1].trim() === "MTEXT" || lines[i + 1].trim() === "TEXT")) {
+      let j = i + 2;
+      while (j < blockRange.end - 1 && lines[j].trim() !== "0") j += 2;
+      const v = codes(lines, { start: i, end: j }, [1, 3, 10, 20, 11, 21, 40, 50, 71]);
+      const h = parseFloat(v[40]) || 0;
+      const x = parseFloat(v[10]);
+      const y = parseFloat(v[20]);
+      if (!h || !isFinite(x) || !isFinite(y)) return null;
+      const w = plain((v[3] || "") + (v[1] || "")).length * h * CHAR_WIDTH;
+      const dx = parseFloat(v[11]);
+      const dy = parseFloat(v[21]);
+      const upright = isFinite(dx) && isFinite(dy) && Math.abs(dy) > Math.abs(dx);
+      const [W, H] = upright ? [h, w] : [w, h];
+      const a = parseInt(v[71] || "1", 10);
+      const col = (a - 1) % 3; // 0 left, 1 centre, 2 right
+      const row = Math.floor((a - 1) / 3); // 0 top, 1 middle, 2 bottom
+      const x0 = upright ? x - W / 2 : col === 0 ? x : col === 1 ? x - W / 2 : x - W;
+      const y0 = upright ? y - H / 2 : row === 0 ? y - H : row === 1 ? y - H / 2 : y;
+      return { x0, x1: x0 + W, y0, y1: y0 + H };
+    }
+    i += 2;
+  }
+  return null;
+}
+
+function circleInk(lines, e) {
+  const v = codes(lines, e, [10, 20, 40]);
+  const r = parseFloat(v[40]);
+  const x = parseFloat(v[10]);
+  const y = parseFloat(v[20]);
+  return isFinite(r) ? { x0: x - r, x1: x + r, y0: y - r, y1: y + r } : null;
+}
+
+const overlaps = (a, b, pad = 0) =>
+  a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
+const shift = (b, dx, dy) => ({ ...b, x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0 + dy, y1: b.y1 + dy });
 
 // A record's box moved with it, so everything downstream measures it where it
 // now is.
@@ -201,4 +309,163 @@ function reseatArrows(lines, ents) {
   return { reseated, refused };
 }
 
-export { reseatArrows };
+// --- clashes ---------------------------------------------------------------
+
+// Every move a callout may make, cheapest first: the shortest distance, and
+// toward its own beam face before away from it, because a callout pulled in
+// against its beam still reads as that beam's.
+const offsetCache = new Map();
+function offsetsToward(toward) {
+  if (offsetCache.has(toward)) return offsetCache.get(toward);
+  const list = [];
+  for (let dy = -MAX_ACROSS; dy <= MAX_ACROSS; dy += STEP_ACROSS)
+    for (let dx = -MAX_ALONG; dx <= MAX_ALONG; dx += STEP_ALONG)
+      list.push({
+        dx,
+        dy,
+        cost: Math.abs(dx) + Math.abs(dy) + (Math.sign(dy) === -toward ? 0.5 * Math.abs(dy) : 0),
+      });
+  list.sort((a, b) => a.cost - b.cost);
+  offsetCache.set(toward, list);
+  return list;
+}
+
+// Moves the free callouts on one elevation off whatever they land on. Returns
+// what moved and what could not be cleared.
+function declash(lines, ents, blockRanges) {
+  const faces = ents.filter((e) => e.layer === FACE_LAYER && e.y1 - e.y0 < 1 && e.x1 - e.x0 > 1);
+  const leaders = ents.filter(
+    (e) => e.layer === LEADER_LAYER && e.type === "LWPOLYLINE" && (e.x1 - e.x0 > 80 || e.y1 - e.y0 > 80),
+  );
+  const heads = arrowheads(lines, ents);
+  const lonX0 = Math.min(...ents.map((e) => e.x0));
+  const lonX1 = Math.max(...ents.map((e) => e.x1));
+
+  // Everything a callout must not land on, and the callouts themselves.
+  const fixed = [];
+  for (const e of ents) {
+    if (e.type === "DIMENSION" && e.dimBlock) {
+      const r = blockRanges.get(e.dimBlock.trim());
+      const ink = r && dimInk(lines, r);
+      if (ink) fixed.push({ box: ink, what: "dimension" });
+    } else if (e.type === "CIRCLE" && /^Axis Circle/.test(e.layer)) {
+      const ink = circleInk(lines, e);
+      if (ink) fixed.push({ box: ink, what: "grid bubble" });
+    }
+  }
+  const callouts = [];
+  for (const e of ents) {
+    if (!CALLOUT_LAYERS.has(e.layer) || e.type !== "TEXT" || e.empty) continue;
+    const ink = textInk(lines, e);
+    if (!ink) continue;
+    callouts.push({ e, box: ink, text: plain(e.text) });
+  }
+
+  // A callout is free when it hangs off a bent leader: its underline is the
+  // leader's last run, and the leader turns at least once on the way to the
+  // bar. A link callout rides its run's extent line and stays put; so does a
+  // callout whose leader carries arrows on more than one bar.
+  for (const c of callouts) {
+    c.free = false;
+    if (c.e.layer === "Link Label") continue;
+    let best = null;
+    let bestCover = 0;
+    for (const l of leaders) {
+      const vs = vertices(lines, l);
+      for (let k = 0; k + 1 < vs.length; k++) {
+        const p = vs[k], q = vs[k + 1];
+        if (Math.abs(p.y - q.y) > 1) continue;
+        if (p.y < c.box.y0 - 0.6 * c.box.h || p.y > c.box.y0 + 0.15 * c.box.h) continue;
+        const cover = Math.min(c.box.x1, Math.max(p.x, q.x)) - Math.max(c.box.x0, Math.min(p.x, q.x));
+        if (cover > bestCover) { bestCover = cover; best = { l, vs }; }
+      }
+    }
+    if (!best || bestCover < 0.4 * (c.box.x1 - c.box.x0) || best.vs.length < 3) continue;
+    const arrowsOn = heads.filter((h) => best.vs.some((v) => Math.abs(v.x - h.apex.x) <= ON && Math.abs(v.y - h.apex.y) <= ON));
+    if (arrowsOn.length > 1) continue;
+    // The bar end is the end further from the callout; it stays where it is.
+    const d = (v) => Math.hypot(v.x - (c.box.x0 + c.box.x1) / 2, v.y - c.box.y0);
+    const barAtStart = d(best.vs[0]) > d(best.vs[best.vs.length - 1]);
+    const f = facesOver(lines, faces, c.box.x0, c.box.x1);
+    if (!f) continue;
+    if (c.box.y0 >= f.top) c.side = "above";
+    else if (c.box.y1 <= f.soffit) c.side = "below";
+    else continue; // a callout inside the beam is left where Prota put it
+    c.leader = best.l;
+    c.barAtStart = barAtStart;
+    // A square leader -- a straight leg off the bar, then the underline --
+    // stays square: the leg keeps its line and the callout slides along its
+    // own underline, never across the leg to the other side of it.
+    const run = barAtStart ? best.vs : best.vs.slice().reverse();
+    c.square =
+      run.length >= 3 &&
+      Math.abs(run[0].x - run[1].x) <= 1 &&
+      run.slice(1).every((v) => Math.abs(v.y - run[1].y) <= 1);
+    c.elbowX = run[1].x;
+    c.leftOfElbow = (c.box.x0 + c.box.x1) / 2 < c.elbowX;
+    c.free = true;
+  }
+
+  const clashWith = (box, self) => {
+    for (const o of fixed) if (overlaps(box, o.box, CLASH_GAP)) return o.what;
+    for (const o of callouts) if (o !== self && overlaps(box, o.box, CLASH_GAP)) return o.text;
+    return null;
+  };
+  // Clear means ROW_GAP from every other text, off the beam by FACE_CLEAR, and
+  // still on this beam's own ground.
+  const clear = (box, self) => {
+    if (box.x0 < lonX0 || box.x1 > lonX1) return false;
+    if (self.square && (self.leftOfElbow ? box.x1 > self.elbowX : box.x0 < self.elbowX)) return false;
+    const f = facesOver(lines, faces, box.x0, box.x1);
+    if (f) {
+      if (self.side === "below" && box.y1 > f.soffit - FACE_CLEAR) return false;
+      if (self.side === "above" && box.y0 < f.top + FACE_CLEAR) return false;
+    }
+    for (const o of fixed) if (overlaps(box, o.box, ROW_GAP)) return false;
+    for (const o of callouts) if (o !== self && overlaps(box, o.box, ROW_GAP)) return false;
+    return true;
+  };
+
+  const moved = [];
+  const stuck = [];
+  // Nearest the beam first: the row next to the face is settled before the
+  // ones hanging off it.
+  const order = callouts
+    .filter((c) => c.free)
+    .sort((a, b) => {
+      const fa = facesOver(lines, faces, a.box.x0, a.box.x1);
+      const fb = facesOver(lines, faces, b.box.x0, b.box.x1);
+      const da = a.side === "below" ? fa.soffit - a.box.y1 : a.box.y0 - fa.top;
+      const db = b.side === "below" ? fb.soffit - b.box.y1 : b.box.y0 - fb.top;
+      return da - db;
+    });
+  for (const c of order) {
+    const hit = clashWith(c.box, c);
+    if (!hit) continue;
+    const toward = c.side === "below" ? 1 : -1;
+    const best = offsetsToward(toward).find((o) => clear(shift(c.box, o.dx, o.dy), c)) || null;
+    if (!best) {
+      stuck.push(`${c.text} on ${hit}`);
+      continue;
+    }
+    const { dx, dy } = best;
+    translateRange(lines, c.e.start, c.e.end, "TEXT", dx, dy);
+    moveRecord(c.e, dx, dy);
+    c.box = shift(c.box, dx, dy);
+    // The leader follows from its second vertex on; the end on the bar stays.
+    // On a square leader only the underline's far end slides with the
+    // callout, so the leg off the bar stays straight.
+    const vs = vertices(lines, c.leader);
+    const run = c.barAtStart ? vs : vs.slice().reverse();
+    run.forEach((v, k) => {
+      if (k === 0) return;
+      const slide = !c.square || k === run.length - 1 ? dx : 0;
+      setVertex(lines, v, v.x + slide, v.y + dy);
+    });
+    reboxPolyline(lines, c.leader);
+    moved.push(`${c.text} off ${hit}`);
+  }
+  return { moved, stuck };
+}
+
+export { reseatArrows, declash, textInk, ROW_GAP, FACE_CLEAR };

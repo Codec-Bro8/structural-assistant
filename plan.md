@@ -462,6 +462,43 @@ Multi-arrow leaders with arrows off their bars: GRD 39 → 6, `grd-floor-halo`
 arrows Prota stacked past the face also stood in the cut marks' way: 14 cut
 marks on those three drawings each have one overlap fewer.
 
+**Callouts off each other.** A callout on a bent leader that comes within 30mm
+of other text (`CLASH_GAP`) moves the cheapest way to a spot that is:
+- 80mm clear of all other text (`ROW_GAP`; the brief's elevation row gap, and
+  the engineer left 92 under 2nd-sm's 2Y16-11);
+- 20mm off its own face (`FACE_CLEAR`; the engineer left 23);
+- on its own beam's ground, and on its own side of a square leader's leg.
+
+The search steps 5mm across and 25mm along, toward the face first. A coarser
+step misses 2Y16-11's 15mm window and slides it 400mm along instead. The leader
+follows from its second vertex on, so the arrow stays on its bar. Link
+callouts, multi-arrow callouts, dimensions and bubbles are pinned.
+
+| drawing | callouts moved | callouts on other callouts, before → after | agreement with the engineer (within 0.75h) |
+|---|---|---|---|
+| `1st-sm` | 14 | 16 → 1 | 85 → 88 of 103 |
+| `2nd-sm` | 9 | 9 → 0 | 59 → 61 of 62 |
+| `3rd-sm` | 11 | 11 → 0 | 57/62 → 62/65 |
+| `1st-BIG.details` | 20 | 24 → 5 | 116/135 → 117/134 |
+| `2nd-BIG.details` | 17 | 17 → 0 | 87 → 89 of 98 |
+| `3rd-BIG.details` | 13 | 13 → 0 | 63 → 64 of 67 |
+| `grd-floor-halo` | 45 | 51 → 5 | no sheet |
+| `GRD` | 36 | 48 → 3 | no sheet |
+| `1ST 2ND-4TH ROOF` | 101 | 100 → 0 | no sheet |
+| `prota-raft-agungi` | 19 | 24 → 1 | no sheet |
+
+"Callouts on other callouts" counts pairs overlapping by more than 10mm, over
+the whole output, strip and unplaced beams included. On the elevations this
+pass works on, the ones left are all between two pinned callouts. Agreement
+counts callouts within 0.75 of a text height of the engineer's, each aligned on
+its own detail. Where the denominator changes, the number of callouts that
+could be aligned changed.
+
+Still open:
+- leaders and dimension lines through a callout: the engineer's six floors have
+  none, Prota leaves 16 on 1st-sm alone;
+- the strip's dimensions (R4/R5).
+
 ### A beam can be cut more than once
 
 A beam that changes depth part way along, or is cut twice for any other reason,
@@ -880,7 +917,7 @@ those runs.
 | `tables.js` | makes sure layers and text styles exist before use |
 | `layout-details.js` | detail sheet arrangement |
 | `cut-marks.js` | pulls each section cut in to the beam faces and clear of the annotation |
-| `callouts.js` | puts side-bar arrows one per side bar |
+| `callouts.js` | puts side-bar arrows one per side bar, and moves callouts off other text |
 | `plan-marks.js` | one mark per merged beam on the plan, and the rule for nudging two apart |
 | `dxf-scene.js` | turns a DXF into drawing primitives, for the preview only |
 | `dxf-scene-cli.js` | the command line for that |
