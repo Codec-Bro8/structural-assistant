@@ -937,7 +937,7 @@ function buildDetailSheet(options) {
   const unsureKeys = new Set(gridTies.unsure.map((u) => u.beam.key));
   const jobs = [];
   const blockRanges = collectBlockRanges(lines);
-  const calloutTally = { arrows: 0, moved: 0, stuck: 0 };
+  const calloutTally = { arrows: 0, moved: 0, slid: 0, stuck: 0 };
   for (const storey of STOREYS) {
     const wanted = beams
       .filter((b) => b.storey === storey && b.num >= FIRST && b.num <= LAST)
@@ -971,6 +971,7 @@ function buildDetailSheet(options) {
       const clashes = declash(lines, s.lon, blockRanges);
       calloutTally.arrows += arrows.reseated;
       calloutTally.moved += clashes.moved.length;
+      calloutTally.slid += clashes.slid.length;
       calloutTally.stuck += clashes.stuck.length;
       if (arrows.refused.length)
         notes.push(
@@ -1639,7 +1640,7 @@ function buildDetailSheet(options) {
   if (layerRes.created) log(`  created layer "${frameLayer}"`);
   log(`  ${ctx.movedBlocks.size} dimension blocks moved with their dimensions.`);
   log(
-    `  ${calloutTally.moved} callout(s) moved clear of what they landed on, ${calloutTally.stuck} left where no clear spot was in reach; ` +
+    `  ${calloutTally.moved} callout(s) moved clear of what they landed on (${calloutTally.slid} with their arrow slid along the bar), ${calloutTally.stuck} left where no clear spot was in reach; ` +
       `${calloutTally.arrows} side-bar leader(s) given one arrow per side bar.`,
   );
   if (ctx.sharedBlocks.size)
